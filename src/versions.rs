@@ -1,6 +1,8 @@
 use maplit::hashmap;
 use std::collections::hash_map::HashMap;
 
+// Static version mapping - retained for potential future use
+#[allow(dead_code)]
 pub fn version_map() -> HashMap<String, String> {
     hashmap! {
         "latest".to_string() => "controller-057".to_string(),

@@ -4,35 +4,31 @@ mod versions;
 
 use crate::build::*;
 use crate::kll::*;
-//use crate::versions::version_map;
 
 use indexmap::IndexMap;
 use std::collections::hash_map::{DefaultHasher, HashMap};
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 
-use bodyparser;
-use iron::prelude::*;
-use iron::{headers, modifiers::Header, status, typemap::Key};
-use logger::Logger;
-use mount::Mount;
-use persistent::{Read, Write};
-use router::Router;
-use staticfile::Static;
-use urlencoded::UrlEncodedQuery;
+use axum::{
+    extract::{Query, State},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
+use tokio::sync::Mutex;
+use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
 
 use chrono::prelude::*;
-use rusqlite::{types::ToSql, Connection};
-
-use serde_derive::{Deserialize, Serialize};
-use serde_json;
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use shared_child::SharedChild;
 
-const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
 const BUILD_ROUTE: &str = "./tmp";
 
 const LAYOUT_DIR: &str = "./layouts";
@@ -66,22 +62,11 @@ pub enum JobEntry {
     Finished(bool),
 }
 
-#[derive(Copy, Clone)]
-pub struct JobQueue;
-impl Key for JobQueue {
-    type Value = HashMap<String, JobEntry>;
-}
-
-#[derive(Copy, Clone)]
-pub struct StatsDatabase;
-impl Key for StatsDatabase {
-    type Value = rusqlite::Connection;
-}
-
-#[derive(Copy, Clone)]
-pub struct Versions;
-impl Key for Versions {
-    type Value = HashMap<String, VersionInfo>;
+#[derive(Clone)]
+pub struct AppState {
+    job_queue: Arc<Mutex<HashMap<String, JobEntry>>>,
+    stats_db: Arc<Mutex<Connection>>,
+    versions: Arc<HashMap<String, VersionInfo>>,
 }
 
 #[derive(Debug)]
@@ -101,26 +86,6 @@ struct RequestLog {
     request_time: DateTime<Utc>,
     build_duration: Option<i32>,
 }
-impl RequestLog {
-    fn from_row(row: &rusqlite::Row) -> Self {
-        RequestLog {
-            id: row.get(0),
-            uid: row.get(1),
-            ip_addr: row.get(2),
-            os: row.get(3),
-            web: row.get(4),
-            serial: row.get(5),
-            hash: row.get(6),
-            board: row.get(7),
-            variant: row.get(8),
-            layers: row.get(9),
-            container: row.get(10),
-            success: row.get(11),
-            request_time: row.get(12),
-            build_duration: row.get(13),
-        }
-    }
-}
 
 #[derive(Debug)]
 struct VersionMap {
@@ -129,255 +94,201 @@ struct VersionMap {
     container: String,
     git_tag: String,
 }
-impl VersionMap {
-    fn from_row(row: &rusqlite::Row) -> Self {
-        VersionMap {
-            name: row.get(0),
-            channel: row.get(1),
-            container: row.get(2),
-            git_tag: row.get(3),
-        }
-    }
+
+#[derive(Deserialize)]
+struct LayoutParams {
+    rev: Option<String>,
 }
 
-fn get_layout(req: &mut Request<'_, '_>) -> IronResult<Response> {
-    let mut default_params = HashMap::new();
-    default_params.insert("rev".to_string(), vec!["HEAD".to_string()]);
-    let params = &req.get::<UrlEncodedQuery>().unwrap_or(default_params);
-    let rev = &params.get("rev").unwrap()[0];
+async fn get_layout(
+    axum::extract::Path(file): axum::extract::Path<String>,
+    Query(params): Query<LayoutParams>,
+) -> Result<Response, StatusCode> {
+    let rev = params.rev.unwrap_or_else(|| "HEAD".to_string());
 
-    let file = &req
-        .extensions
-        .get::<Router>()
-        .unwrap()
-        .find("file")
-        .unwrap_or("/");
-
-    let path = PathBuf::from(format!("{}/{}", LAYOUT_DIR, file));
-    let realfile = fs::read_link(&path).unwrap_or(PathBuf::from(file));
+    let path = std::path::PathBuf::from(format!("{}/{}", LAYOUT_DIR, file));
+    let realfile = fs::read_link(&path).unwrap_or(std::path::PathBuf::from(&file));
     let realpath = format!("{}/{}", LAYOUT_DIR, realfile.to_str().unwrap());
-    println!("Get layout {:?} ({})", file, rev);
+    
+    tracing::info!("Get layout {:?} ({})", file, rev);
 
     let result = Command::new("git")
         .args(&["show", &format!("{}:{}", rev, realpath)])
         .output()
-        .expect("Failed!");
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
     let content = String::from_utf8_lossy(&result.stdout).to_string();
 
-    Ok(Response::with((
-        status::Ok,
-        Header(headers::ContentType::json()),
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
         content,
-    )))
+    )
+        .into_response())
 }
 
-fn build_request(req: &mut Request<'_, '_>) -> IronResult<Response> {
-    if let Ok(Some(body)) = req.get::<bodyparser::Struct<BuildRequest>>() {
-        let ip = req.remote_addr.ip();
-        let user_agent = req
-            .headers
-            .get::<headers::UserAgent>()
-            .unwrap_or(&iron::headers::UserAgent("".to_owned()))
-            .to_string();
-
-        let os = {
-            let ua = user_agent.to_lowercase();
-            if ua.contains("windows") {
-                "Windows"
-            } else if ua.contains("mac") {
-                "Mac"
-            } else if ua.contains("linux") || ua.contains("x11") {
-                "Linux"
-            } else {
-                "Unknown"
-            }
-        }
+async fn build_request(
+    State(state): State<AppState>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<BuildRequest>,
+) -> Result<Response, StatusCode> {
+    let ip = addr.ip();
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("")
         .to_string();
 
-        let is_desktop_configurator = user_agent.to_lowercase().contains("electron");
-        println!("IP: {:?}", ip);
-        println!("OS: {:?}", os);
-        println!("WEB: {:?}", !is_desktop_configurator);
-
-        let request_time: DateTime<Utc> = Utc::now();
-
-        let config = body.config;
-	//let versions = req.get::<Read<VersionsMap>>().unwrap();
-        //let container = versions.get(body.env).unwrap_or("controller-050");
-        let container = match body.env.as_ref() {
-            "lts" => "controller-050",
-            "nightly" => "controller-057",
-            "latest" | _ => "controller-057",
-        }
-        .to_string();
-
-        let config_str = serde_json::to_string(&config).unwrap();
-
-        let request_time: DateTime<Utc> = Utc::now();
-
-        let hash = {
-            let mut hasher = DefaultHasher::new();
-            container.hash(&mut hasher);
-            config_str.hash(&mut hasher);
-            let h = hasher.finish();
-            format!("{:x}", h)
-        };
-        println!("Received request: {}", hash);
-
-        let info = configure_build(&config, vec!["".to_string()]);
-        let mut output_file = format!("{}-{}-{}.zip", info.name, info.layout, hash);
-        //let file_exists = Path::new(&output_file).exists();
-        //println!("Zip exists: {:?} ({})", file_exists, output_file)
-
-        let job: JobEntry = {
-            let mutex = req.get::<Write<JobQueue>>().expect("Could not find mutex");
-            let queue = mutex.lock(); //.expect("Could not lock mutex"); // *** Panics if poisoned **
-            if let Err(e) = queue {
-                eprintln!("{:?}", e);
-                std::process::exit(1);
-            }
-            let mut queue = queue.unwrap();
-            let job = (*queue).get(&hash);
-
-            //if file_exists && job.is_some() {
-            if job.is_some() {
-                println!(" > Existing task");
-                job.unwrap().clone()
-            } else {
-                println!(" > Starting new build in container {}", container);
-
-                let config_dir = format!("{}/{}", CONFIG_DIR, hash);
-                fs::create_dir_all(&config_dir).expect("Could not create directory");
-
-                let mut layers: Vec<String> = Vec::new();
-                let files = generate_kll(&config, body.env == "lts");
-                for file in files {
-                    let filename = format!("{}/{}", config_dir, file.name);
-                    fs::write(&filename, file.content).expect("Could not write kll file");
-                    layers.push(format!("{}", filename));
-                }
-
-		println!("{:?}", layers);
-                let info = configure_build(&config, layers);
-                let output_file = format!("{}-{}-{}.zip", info.name, info.layout, hash);
-                println!("{:?}", info);
-
-                let config_file = format!("{}/{}-{}.json", config_dir, info.name, info.layout);
-                fs::write(&config_file, &config_str).expect("Could not write config file");
-
-                let process = start_build(container.clone(), info, hash.clone(), output_file);
-                let job = JobEntry::Building(Arc::new(process));
-                (*queue).insert(hash.clone(), job.clone());
-                job
-            }
-
-            // drop lock
-        };
-
-        let (success, duration) = match job {
-            JobEntry::Building(arc) => {
-                let process = arc.clone();
-                println!(" > Waiting for task to finish {}", process.id());
-                let exit_status = process.wait().unwrap();
-                let success: bool = exit_status.success();
-                println!(" > Done");
-
-                {
-                    let rwlock = req.get::<Write<JobQueue>>().expect("Could not find mutex");
-                    let mut queue = rwlock.lock().expect("Could not lock mutex");
-                    let job = (*queue).get_mut(&hash).expect("Could not find job");
-                    *job = JobEntry::Finished(success);
-                    // drop lock
-                }
-
-                let duration = Some(Utc::now().signed_duration_since(request_time));
-                (success, duration)
-            }
-            JobEntry::Finished(success) => {
-                println!(" > Job already in finished {}. Updating time.", hash);
-                (success, None)
-            }
-        };
-
-        let build_duration = match duration {
-            Some(t) => Some(t.num_milliseconds()),
-            None => None,
-        };
-        println!(
-            "Started at: {:?}, Duration: {:?}",
-            request_time, build_duration
-        );
-
-        let layers = vec![""];
-        let args: &[&ToSql] = &[
-            &(ip.to_string()),
-            &os,
-            &!is_desktop_configurator,
-            &hash,
-            &info.name,
-            &info.layout,
-            &(layers.len() as u32),
-            &container,
-            &success,
-            &request_time,
-            &build_duration,
-        ];
-
-        {
-            let mutex = req
-                .get::<Write<StatsDatabase>>()
-                .expect("Could not find mutex");
-            let db = mutex.lock().expect("Could not lock mutex");
-            // TODO: uid, serial
-            (*db).execute("INSERT INTO Requests (ip_addr, os, web, hash, board, variant, layers, container, success, request_time, build_duration)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args).unwrap_or_else(|_| {
-			println!("Error: Failed to insert request into stats db");
-			0 as usize
-		});
-        }
-
-        if !success {
-            output_file = format!("{}-{}-{}_error.zip", info.name, info.layout, hash);
-        }
-
-        let result = BuildResult {
-            filename: format!("{}/{}", BUILD_ROUTE, output_file),
-            success: success,
-        };
-
-        return Ok(Response::with((
-            status::Ok,
-            Header(headers::ContentType::json()),
-            serde_json::to_string(&result).unwrap(),
-        )));
-    } else if let Err(err) = req.get::<bodyparser::Struct<BuildRequest>>() {
-        println!("Parse error: {:?}", err);
-        use bodyparser::BodyErrorCause::JsonError;
-        let s = if let JsonError(e) = err.cause {
-            println!("e: {:?}", e);
-            e.to_string()
+    let os = {
+        let ua = user_agent.to_lowercase();
+        if ua.contains("windows") {
+            "Windows"
+        } else if ua.contains("mac") {
+            "Mac"
+        } else if ua.contains("linux") || ua.contains("x11") {
+            "Linux"
         } else {
-            err.detail
-        };
+            "Unknown"
+        }
+    }
+    .to_string();
 
-        return Ok(Response::with((
-            status::BadRequest,
-            Header(headers::ContentType::json()),
-            format!("{{ \"error\": \"{}\" }}", s),
-        )));
+    let is_desktop_configurator = user_agent.to_lowercase().contains("electron");
+    tracing::info!("IP: {:?}", ip);
+    tracing::info!("OS: {:?}", os);
+    tracing::info!("WEB: {:?}", !is_desktop_configurator);
+
+    let request_time: DateTime<Utc> = Utc::now();
+
+    let config = body.config;
+    let container = match body.env.as_ref() {
+        "lts" => "controller-050",
+        "nightly" => "controller-057",
+        "latest" | _ => "controller-057",
+    }
+    .to_string();
+
+    let config_str = serde_json::to_string(&config).unwrap();
+
+    let hash = {
+        let mut hasher = DefaultHasher::new();
+        container.hash(&mut hasher);
+        config_str.hash(&mut hasher);
+        let h = hasher.finish();
+        format!("{:x}", h)
+    };
+    tracing::info!("Received request: {}", hash);
+
+    let info = configure_build(&config, vec!["".to_string()]);
+    let mut output_file = format!("{}-{}-{}.zip", info.name, info.layout, hash);
+
+    let job: JobEntry = {
+        let mut queue = state.job_queue.lock().await;
+        let job = queue.get(&hash);
+
+        if job.is_some() {
+            tracing::info!(" > Existing task");
+            job.unwrap().clone()
+        } else {
+            tracing::info!(" > Starting new build in container {}", container);
+
+            let config_dir = format!("{}/{}", CONFIG_DIR, hash);
+            fs::create_dir_all(&config_dir).expect("Could not create directory");
+
+            let mut layers: Vec<String> = Vec::new();
+            let files = generate_kll(&config, body.env == "lts");
+            for file in files {
+                let filename = format!("{}/{}", config_dir, file.name);
+                fs::write(&filename, file.content).expect("Could not write kll file");
+                layers.push(format!("{}", filename));
+            }
+
+            tracing::info!("{:?}", layers);
+            let info = configure_build(&config, layers);
+            let output_file = format!("{}-{}-{}.zip", info.name, info.layout, hash);
+            tracing::info!("{:?}", info);
+
+            let config_file = format!("{}/{}-{}.json", config_dir, info.name, info.layout);
+            fs::write(&config_file, &config_str).expect("Could not write config file");
+
+            let process = start_build(container.clone(), info, hash.clone(), output_file);
+            let job = JobEntry::Building(Arc::new(process));
+            queue.insert(hash.clone(), job.clone());
+            job
+        }
+    };
+
+    let (success, duration) = match job {
+        JobEntry::Building(arc) => {
+            let process = arc.clone();
+            tracing::info!(" > Waiting for task to finish {}", process.id());
+            let exit_status = process.wait().unwrap();
+            let success: bool = exit_status.success();
+            tracing::info!(" > Done");
+
+            {
+                let mut queue = state.job_queue.lock().await;
+                let job = queue.get_mut(&hash).expect("Could not find job");
+                *job = JobEntry::Finished(success);
+            }
+
+            let duration = Some(Utc::now().signed_duration_since(request_time));
+            (success, duration)
+        }
+        JobEntry::Finished(success) => {
+            tracing::info!(" > Job already finished {}. Updating time.", hash);
+            (success, None)
+        }
+    };
+
+    let build_duration = duration.map(|t| t.num_milliseconds());
+    tracing::info!(
+        "Started at: {:?}, Duration: {:?}",
+        request_time,
+        build_duration
+    );
+
+    let layers = vec![""];
+    {
+        let db = state.stats_db.lock().await;
+        db.execute(
+            "INSERT INTO Requests (ip_addr, os, web, hash, board, variant, layers, container, success, request_time, build_duration)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                ip.to_string(),
+                os,
+                !is_desktop_configurator,
+                hash,
+                info.name,
+                info.layout,
+                layers.len() as u32,
+                container,
+                success,
+                request_time,
+                build_duration,
+            ],
+        )
+        .unwrap_or_else(|e| {
+            tracing::error!("Error: Failed to insert request into stats db: {}", e);
+            0
+        });
     }
 
-    return Ok(Response::with((
-        status::BadRequest,
-        Header(headers::ContentType::json()),
-        "{ \"error\": \"bad request\" }",
-    )));
+    if !success {
+        output_file = format!("{}-{}-{}_error.zip", info.name, info.layout, hash);
+    }
+
+    let result = BuildResult {
+        filename: format!("{}/{}", BUILD_ROUTE, output_file),
+        success,
+    };
+
+    Ok((StatusCode::OK, Json(result)).into_response())
 }
 
-fn stats(req: &mut Request<'_, '_>) -> IronResult<Response> {
-    let mutex = req.get::<Write<StatsDatabase>>().unwrap();
-    let db = mutex.lock().unwrap();
-    let args: &[&ToSql] = &[];
+async fn stats(State(state): State<AppState>) -> Result<Response, StatusCode> {
+    let db = state.stats_db.lock().await;
 
     let mut result = String::new();
     let mut total_layers: usize = 0;
@@ -389,37 +300,47 @@ fn stats(req: &mut Request<'_, '_>) -> IronResult<Response> {
     let mut hashes: Vec<String> = Vec::new();
     let mut users: Vec<String> = Vec::new();
 
-    let mut stmt = (*db).prepare("SELECT * FROM Requests").unwrap();
+    let mut stmt = db.prepare("SELECT * FROM Requests").unwrap();
     let rows = stmt
-        .query_map(args, |row| RequestLog::from_row(row))
+        .query_map([], |row| {
+            Ok(RequestLog {
+                id: row.get(0)?,
+                uid: row.get(1)?,
+                ip_addr: row.get(2)?,
+                os: row.get(3)?,
+                web: row.get(4)?,
+                serial: row.get(5)?,
+                hash: row.get(6)?,
+                board: row.get(7)?,
+                variant: row.get(8)?,
+                layers: row.get(9)?,
+                container: row.get(10)?,
+                success: row.get(11)?,
+                request_time: row.get(12)?,
+                build_duration: row.get(13)?,
+            })
+        })
         .unwrap();
+
     for row in rows {
         let request = row.unwrap();
-        println!("req: {:?}", request);
+        tracing::debug!("req: {:?}", request);
 
-        let counter = os_counts.entry(request.os).or_insert(0);
-        *counter += 1;
+        *os_counts.entry(request.os).or_insert(0) += 1;
 
-        let platform = match request.web {
-            true => "Web",
-            false => "Desktop",
-        }
-        .to_string();
-        let counter = platform_counts.entry(platform).or_insert(0);
-        *counter += 1;
+        let platform = if request.web { "Web" } else { "Desktop" }.to_string();
+        *platform_counts.entry(platform).or_insert(0) += 1;
 
         let keyboard = format!("{}-{}", request.board, request.variant);
-        let counter = keyboard_counts.entry(keyboard).or_insert(0);
-        *counter += 1;
+        *keyboard_counts.entry(keyboard).or_insert(0) += 1;
 
-        let counter = container_counts.entry(request.container).or_insert(0);
-        *counter += 1;
+        *container_counts.entry(request.container).or_insert(0) += 1;
 
         total_layers += request.layers as usize;
         total_buildtime += request.build_duration.unwrap_or(0) as i32;
 
         hashes.push(request.hash);
-        users.push(request.ip_addr); //requst.uid
+        users.push(request.ip_addr);
     }
 
     let total_builds = hashes.len();
@@ -431,24 +352,28 @@ fn stats(req: &mut Request<'_, '_>) -> IronResult<Response> {
     users.dedup();
     let unique_users = users.len();
 
-    let cache_ratio = match unique_builds {
-        0 => 0.,
-        _ => (total_builds as f32) / (unique_builds as f32),
+    let cache_ratio = if unique_builds == 0 {
+        0.
+    } else {
+        (total_builds as f32) / (unique_builds as f32)
     };
 
-    let user_ratio = match unique_builds {
-        0 => 0.,
-        _ => (total_builds as f32) / (unique_users as f32),
+    let user_ratio = if unique_users == 0 {
+        0.
+    } else {
+        (total_builds as f32) / (unique_users as f32)
     };
 
-    let layers_ratio = match unique_builds {
-        0 => 0.,
-        _ => (total_layers as f32) / (total_builds as f32),
+    let layers_ratio = if total_builds == 0 {
+        0.
+    } else {
+        (total_layers as f32) / (total_builds as f32)
     };
 
-    let build_time = match unique_builds {
-        0 => 0,
-        _ => total_buildtime / (unique_builds as i32),
+    let build_time = if unique_builds == 0 {
+        0
+    } else {
+        total_buildtime / (unique_builds as i32)
     };
 
     result += &format!("Builds: {} ({} unique)\n", total_builds, unique_builds);
@@ -462,30 +387,32 @@ fn stats(req: &mut Request<'_, '_>) -> IronResult<Response> {
     result += &format!("Keyboard Counts: {:#?}\n", keyboard_counts);
     result += &format!("Version Counts: {:#?}\n\n", container_counts);
 
-    return Ok(Response::with((status::Ok, result)));
+    Ok((StatusCode::OK, result).into_response())
 }
 
-fn versions_request(req: &mut Request<'_, '_>) -> IronResult<Response> {
-    let versions = req.get::<Read<Versions>>().unwrap();
-    let versions: HashMap<String, Option<ReleaseInfo>> = (*versions)
+async fn versions_request(State(state): State<AppState>) -> Result<Response, StatusCode> {
+    let versions: HashMap<String, Option<ReleaseInfo>> = state
+        .versions
         .iter()
         .map(|(k, v)| (k.clone(), v.info.clone()))
         .collect();
 
-    Ok(Response::with((
-        status::Ok,
-        Header(headers::ContentType::json()),
-        serde_json::to_string(&versions).unwrap(),
-    )))
+    Ok((StatusCode::OK, Json(versions)).into_response())
 }
 
-fn version_map(db: rusqlite::Connection) -> HashMap<String, VersionInfo> {
-    let args: &[&ToSql] = &[];
+fn version_map(db: Connection) -> HashMap<String, VersionInfo> {
     let mut stmt = db.prepare("SELECT * FROM Versions").unwrap();
     let rows = stmt
-        .query_map(args, |row| VersionMap::from_row(row))
+        .query_map([], |row| {
+            Ok(VersionMap {
+                name: row.get(0)?,
+                channel: row.get(1)?,
+                container: row.get(2)?,
+                git_tag: row.get(3)?,
+            })
+        })
         .unwrap();
-    let mut versions: Vec<VersionMap> = rows.map(|r| r.unwrap()).collect();
+    let versions: Vec<VersionMap> = rows.map(|r| r.unwrap()).collect();
 
     let containers = list_containers();
     let tags = fetch_tags();
@@ -498,7 +425,7 @@ fn version_map(db: rusqlite::Connection) -> HashMap<String, VersionInfo> {
                 VersionInfo {
                     container: v.container,
                     channel: v.channel,
-                    info: tags.get(&v.git_tag).map(|v| v.clone()),
+                    info: tags.get(&v.git_tag).cloned(),
                 },
             )
         })
@@ -511,11 +438,13 @@ fn fetch_tags() -> IndexMap<String, ReleaseInfo> {
         .output()
         .expect("Failed!");
     let out = String::from_utf8_lossy(&result.stdout);
-    let mut map = out
+    let map = out
         .lines()
         .filter(|l| !l.contains("^{}"))
-        .map(|l| l.split("\t"))
-        .map(|mut x| (x.next().unwrap().trim(), x.next().unwrap().trim()));
+        .filter_map(|l| {
+            let mut parts = l.split('\t');
+            Some((parts.next()?.trim(), parts.next()?.trim()))
+        });
 
     let mut versions = IndexMap::new();
 
@@ -582,85 +511,75 @@ pub struct ReleaseInfo {
     notes: String,
 }
 
-fn main() {
-    pretty_env_logger::init();
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
 
-    let result = Command::new("git")
-        .args(&["remote", "add", CONTROLLER_GIT_REMOTE, CONTROLLER_GIT_URL])
-        .status()
-        .expect("Failed");
+    // Check if remote exists, add it if it doesn't
+    let remote_exists = Command::new("git")
+        .args(&["remote", "get-url", CONTROLLER_GIT_REMOTE])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
 
-    let result = Command::new("git")
+    if !remote_exists {
+        let _ = Command::new("git")
+            .args(&["remote", "add", CONTROLLER_GIT_REMOTE, CONTROLLER_GIT_URL])
+            .output();
+    }
+
+    let _ = Command::new("git")
         .args(&["fetch", CONTROLLER_GIT_REMOTE])
-        .status()
-        .expect("Failed");
-
-    /*let status = Command::new("docker-compose")
-        .args(&["-f", "docker-compose.yml", "up", "-d", "--no-recreate"])
-        .status()
-        .expect("Failed!");
-
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }*/
+        .output()
+        .expect("Failed to fetch git remote");
 
     let queue: HashMap<String, JobEntry> = HashMap::new();
 
-    let args: &[&ToSql] = &[];
     let config_db = Connection::open(Path::new(CONFIG_DB_FILE)).unwrap();
-    config_db.execute(CONFIG_DB_SCHEMA, args).unwrap();
+    config_db.execute(CONFIG_DB_SCHEMA, []).unwrap();
 
     let stats_db = Connection::open(Path::new(STATS_DB_FILE)).unwrap();
-    stats_db.execute(STATS_DB_SCHEMA, args).unwrap();
-
-    /*println!("\nExisting builds: ");
-    let builds = get_builds("controller-050");
-    for build in builds.lines().skip(1) {
-        println!(" - {}", build);
-        queue.insert(build.to_string(), None);
-    }
-
-    println!("\nBuilds to purge: ");
-    old_builds("controller-050");
-    println!("");*/
+    stats_db.execute(STATS_DB_SCHEMA, []).unwrap();
 
     let containers = list_containers();
-    println!("\nPossible containers:");
-    println!("{:#?}", containers);
+    tracing::info!("\nPossible containers:");
+    tracing::info!("{:#?}", containers);
 
     let versions = version_map(config_db);
-    println!("\nVersions:");
+    tracing::info!("\nVersions:");
     for (v, i) in versions.iter() {
-        println!("{} -> {} [{}]", v, i.container, i.channel);
+        tracing::info!("{} -> {} [{}]", v, i.container, i.channel);
     }
 
-    let (logger_before, logger_after) = Logger::new(None);
+    let state = AppState {
+        job_queue: Arc::new(Mutex::new(queue)),
+        stats_db: Arc::new(Mutex::new(stats_db)),
+        versions: Arc::new(versions),
+    };
 
-    let mut layout_router = Router::new();
-    layout_router.get("/:file", get_layout, "layout");
+    let app = Router::new()
+        .route("/versions", get(versions_request))
+        .route("/stats", get(stats))
+        .route("/layouts/:file", get(get_layout))
+        .nest_service("/tmp", ServeDir::new(BUILD_DIR))
+        .fallback(post(build_request)) // Catch-all POST handler (like Iron's mount at "/")
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
 
-    let mut mount = Mount::new();
-    //mount.mount("/layouts/", Static::new(Path::new(LAYOUT_DIR)));
-    mount.mount("/layouts/", layout_router);
-    mount.mount("/tmp/", Static::new(Path::new(BUILD_DIR)));
-    mount.mount("/versions", versions_request);
-    mount.mount("/", build_request);
+    let host = std::env::var("KIISRV_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let port = std::env::var("KIISRV_PORT").unwrap_or_else(|_| "3001".to_string());
+    let api_host = format!("{}:{}", host, port);
 
-    let host = std::env::var("KIISRV_HOST");
-    let host = host.as_ref().map_or("0.0.0.0", String::as_str);
+    tracing::info!("\nBuild dispatcher starting.\nListening on {}", api_host);
 
-    let port = std::env::var("KIISRV_PORT");
-    let port = port.as_ref().map_or("3001", String::as_str);
+    let listener = tokio::net::TcpListener::bind(&api_host)
+        .await
+        .expect("Failed to bind to address");
 
-    let api_host: &str = &format!("{}:{}", host, port);
-    println!("\nBuild dispatcher starting.\nListening on {}", api_host);
-
-    let mut chain = Chain::new(mount);
-    chain.link_before(Write::<JobQueue>::one(queue));
-    chain.link_before(Write::<StatsDatabase>::one(stats_db));
-    chain.link_before(Read::<Versions>::one(versions));
-    chain.link_before(Read::<bodyparser::MaxBodyLength>::one(MAX_BODY_LENGTH));
-    chain.link_before(logger_before);
-    chain.link_after(logger_after);
-    Iron::new(chain).http(api_host).unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

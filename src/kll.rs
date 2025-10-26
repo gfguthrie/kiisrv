@@ -1,6 +1,5 @@
 use indexmap::IndexMap;
-use serde_derive::{Deserialize, Serialize};
-use std::ffi::OsStr;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 

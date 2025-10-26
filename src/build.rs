@@ -59,8 +59,14 @@ pub fn configure_build(config: &KllConfig, layers: Vec<String>) -> BuildInfo {
     };
 
     let mut layers = layers.iter();
-    let base_layer_kll = kll_filename(layers.next().unwrap().to_string());
-    let base_layer = Path::new(&base_layer_kll).file_stem().unwrap_or(OsStr::new("")).to_os_string();
+    let base_layer_kll = layers
+        .next()
+        .map(|s| kll_filename(s.to_string()))
+        .unwrap_or_default();
+    let base_layer = Path::new(&base_layer_kll)
+        .file_stem()
+        .unwrap_or(std::ffi::OsStr::new(""))
+        .to_os_string();
 
     let default_map = {
         // TODO (HaaTa): extra_map is likely not necessary anymore
@@ -109,6 +115,11 @@ pub fn start_build(
         ),
         "-e".to_string(),
         format!("Layout={}", config.variant),
+        "-e".to_string(),
+        // Fix for GCC 12+ compatibility with old firmware code
+        // Modern GCC defaults to -fno-common which breaks the old firmware's header-defined variables
+        // Use CFLAGS which is read by the build scripts before CMake
+        "CFLAGS=-fcommon".to_string(),
     ];
 
     if config.split_keyboard {
@@ -118,19 +129,19 @@ pub fn start_build(
 
     args.extend_from_slice(&[container.clone(), config.build_script, kll_dir, output_file]);
 
-    let mut compile = Command::new("docker-compose");
-    compile.args(&args);
-    let process = SharedChild::spawn(&mut compile).expect("docker-compose failed to run container");
+    let mut compile = Command::new("docker");
+    compile.arg("compose").args(&args);
+    let process = SharedChild::spawn(&mut compile).expect("docker compose failed to run container");
 
     println!(" >> Created PID: {} ({})", process.id(), container);
     return process;
 }
 
 pub fn list_containers() -> Vec<String> {
-    let result = Command::new("docker-compose")
-        .args(&["config", "--services"])
+    let result = Command::new("docker")
+        .args(&["compose", "config", "--services"])
         .output()
-        .expect("Please install docker-compose");
+        .expect("Please install docker compose");
     let out = String::from_utf8_lossy(&result.stdout);
     out.lines()
         .filter(|s| !s.contains("template"))
@@ -138,9 +149,12 @@ pub fn list_containers() -> Vec<String> {
         .collect()
 }
 
+// Utility functions for managing builds (currently unused but may be useful for future maintenance)
+#[allow(dead_code)]
 pub fn get_builds(service: &str) -> String {
-    let result = Command::new("docker-compose")
+    let result = Command::new("docker")
         .args(&[
+            "compose",
             "run",
             "--rm",
             "--entrypoint",
@@ -151,13 +165,15 @@ pub fn get_builds(service: &str) -> String {
             "%P\n",
         ])
         .output()
-        .expect("docker-compose failed!");
+        .expect("docker compose failed!");
     String::from_utf8_lossy(&result.stdout).to_string()
 }
 
+#[allow(dead_code)]
 fn old_builds(service: &str) {
-    let status = Command::new("docker-compose")
+    let status = Command::new("docker")
         .args(&[
+            "compose",
             "run",
             "--rm",
             "--entrypoint",
@@ -171,7 +187,7 @@ fn old_builds(service: &str) {
             "-print",
         ])
         .status()
-        .expect("docker-compose failed!");
+        .expect("docker compose failed!");
 
     if status.success() {
         println!("Success!");
