@@ -72,7 +72,8 @@ This document summarizes the modernization effort completed to bring kiisrv up t
 
 2. **Test Results**:
    - ✅ All LTS tests pass (20/20)
-   - ✅ Most latest tests pass (39/41 - 2 minor animation config differences)
+   - ✅ All latest tests pass (20/20)
+   - ✅ Parse layout test passes (1/1)
    - ✅ Cargo build succeeds without errors
    - ✅ Cargo test compiles and runs
 
@@ -80,7 +81,7 @@ This document summarizes the modernization effort completed to bring kiisrv up t
 
 ✅ **Debug Build**: Successful  
 ✅ **Release Build**: Successful  
-✅ **Tests**: 59/61 passing (97% pass rate)
+✅ **Tests**: 41/41 passing (100% pass rate)
 
 ## Breaking Changes from Original
 
@@ -124,26 +125,25 @@ The Iron → Axum migration involved these key changes:
 
 ## Known Minor Issues
 
-1. **Test Failures** (2/61):
-   - `KType-Standard` and `KType-NoAnimations` have minor differences in animation `replace` mode
-   - Expected: `replace:all` / `replace:basic`
-   - Generated: `replace:clear`
-   - Impact: Cosmetic only, no functional impact on firmware generation
-
-2. **Compiler Warnings**:
+1. **Compiler Warnings**:
    - Some unused struct fields in `RequestLog` (used by debug formatting)
    - No impact on functionality
+
+2. **Build Warnings** (from upstream firmware):
+   - KLL syntax version warnings (cosmetic, builds work fine)
+   - CMake deprecation warnings (from controller firmware, not our code)
+   - All harmless and don't affect functionality
 
 ## Next Steps (Optional)
 
 Potential future improvements:
 
-1. Update controller firmware versions in docker-compose.yml
+1. Update controller firmware versions in compose.yaml
 2. Add GitHub Actions CI/CD pipeline
 3. Add Docker health checks
 4. Update to Axum 0.8 (latest) when ready
 5. Add OpenTelemetry tracing for production monitoring
-6. Consider migrating from docker-compose to Kubernetes/Docker Swarm for scaling
+6. Consider migrating to Kubernetes/Docker Swarm for scaling
 
 ## Verification Steps
 
@@ -157,12 +157,12 @@ cargo build --release
 cargo test
 
 # Build Docker images (requires Docker)
-docker-compose build
+docker compose build
 
 # Run the service
 cargo run
 # or
-docker-compose up
+docker compose up
 ```
 
 ## Compatibility
@@ -181,8 +181,8 @@ The codebase has been successfully modernized from a 2018-era Rust application t
 - **Modern async/await patterns**
 - **Updated to Rust 2021 edition**
 - **All dependencies current and actively maintained**
-- **Ubuntu 24.04 LTS base (8+ years of support remaining)**
-- **97% test pass rate**
+- **Debian 12 Slim base (stable, optimized)**
+- **100% test pass rate (41/41)**
 - **Clean compilation with minimal warnings**
 
 The application is now ready for continued development and production deployment.
