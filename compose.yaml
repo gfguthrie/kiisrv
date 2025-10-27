@@ -10,8 +10,6 @@ x-controller:
     - ccache:/mnt/ccache
     - ./tmp_config:/mnt/config
     - ./tmp_builds:/mnt/builds
-  network_mode: "host"
-  dns: 8.8.8.8
 
 services:
   controller-050:
