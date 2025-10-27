@@ -115,11 +115,6 @@ pub fn start_build(
         ),
         "-e".to_string(),
         format!("Layout={}", config.variant),
-        "-e".to_string(),
-        // Fix for GCC 12+ compatibility with old firmware code
-        // Modern GCC defaults to -fno-common which breaks the old firmware's header-defined variables
-        // Use CFLAGS which is read by the build scripts before CMake
-        "CFLAGS=-fcommon".to_string(),
     ];
 
     if config.split_keyboard {

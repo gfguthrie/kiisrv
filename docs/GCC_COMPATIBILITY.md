@@ -29,29 +29,14 @@ char CLILineBuffer[CLI_MaxBufferSize];  // ❌ Definition in header
 
 ## The Fix
 
-We pass `CFLAGS=-fcommon` to restore the old GCC behavior:
+We set `CFLAGS=-fcommon` in `build.sh` to restore the old GCC behavior:
 
-```rust:105:121:src/build.rs
-let mut args = vec![
-    "run".to_string(),
-    "--rm".to_string(),
-    "-T".to_string(),
-    "-e".to_string(),
-    format!("DefaultMapOverride={}", kll_layer(config.default_map)),
-    "-e".to_string(),
-    format!(
-        "PartialMapsExpandedOverride={}",
-        kll_list(config.partial_maps)
-    ),
-    "-e".to_string(),
-    format!("Layout={}", config.variant),
-    "-e".to_string(),
-    // Fix for GCC 12+ compatibility with old firmware code
-    "CFLAGS=-fcommon".to_string(),
-];
+```bash
+# In build.sh
+export CFLAGS="${CFLAGS:--fcommon}"
 ```
 
-This environment variable is passed to the Docker container and used by CMake during compilation.
+This exports the CFLAGS environment variable which is picked up by the keyboard build scripts and CMake during compilation. The `${CFLAGS:--fcommon}` syntax means "use CFLAGS if already set, otherwise default to `-fcommon`".
 
 ## Why Not Fix the Firmware Code?
 
