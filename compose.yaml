@@ -1,5 +1,3 @@
-version: '3.7'
-
 x-controller:
   &controller-template
   tmpfs: /tmp
@@ -12,56 +10,57 @@ x-controller:
     - ccache:/mnt/ccache
     - ./tmp_config:/mnt/config
     - ./tmp_builds:/mnt/builds
-  # Remove me when ubuntu 14.04 is less shitty
-  network_mode: "host"
-  dns: 8.8.8.8
-
-x-build:
-  &build-defaults
-  context: .
-  dockerfile: Dockerfile
 
 services:
-  build-template:
-    build:
-      context: .
-      dockerfile: Dockerfile.buildenv
-    image: build-template:1
-
   controller-050:
     << : *controller-template
     build:
-      << : *build-defaults
+      context: .
+      dockerfile: Dockerfile
+      target: controller
       args:
         - TAG=v0.5.0
+    image: kiisrv-controller-050:latest
 
   controller-054:
     << : *controller-template
     build:
-      << : *build-defaults
+      context: .
+      dockerfile: Dockerfile
+      target: controller
       args:
         - TAG=v0.5.4
+    image: kiisrv-controller-054:latest
 
   controller-055:
     << : *controller-template
     build:
-      << : *build-defaults
+      context: .
+      dockerfile: Dockerfile
+      target: controller
       args:
         - TAG=v0.5.5
+    image: kiisrv-controller-055:latest
 
   controller-056:
     << : *controller-template
     build:
-      << : *build-defaults
+      context: .
+      dockerfile: Dockerfile
+      target: controller
       args:
         - TAG=v0.5.6
+    image: kiisrv-controller-056:latest
 
   controller-057:
     << : *controller-template
     build:
-      << : *build-defaults
+      context: .
+      dockerfile: Dockerfile
+      target: controller
       args:
         - TAG=v0.5.7
+    image: kiisrv-controller-057:latest
 
 secrets:
   github_apikey:

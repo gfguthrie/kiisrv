@@ -19,6 +19,9 @@ build() {
 
 	set -exo pipefail
 
+	# Export CFLAGS for GCC 12+ compatibility with old firmware
+	export CFLAGS="${CFLAGS:--fcommon}"
+
 	pipenv run ./${BuildScript} -c "${CONTROLLER_DIR}" -o "${BUILD_DIR}" \
 	 2>&1 | tee "${BUILD_DIR}/build.log"
 	RETVAL=$?

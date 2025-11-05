@@ -100,7 +100,7 @@ U"RIGHT" : U"RIGHT";
 
 
 
-A[all_white] <= start, replace:basic, pfunc:interp;
+A[all_white] <= start, replace:clear, pfunc:interp;
 A[all_white, 1] <= P[c:0%](255,255,255), P[c:100%](255,255,255);
 
 

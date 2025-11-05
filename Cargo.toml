@@ -2,32 +2,30 @@
 name = "kiisrv"
 version = "0.1.0"
 authors = ["Smasher816"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-shared_child = "0.3.3"
-iron = "0.6.0"
-logger = "0.4.0"
-staticfile = "0.5.0"
-mount = "0.4.0"
-router = "0.6.0"
-urlencoded = "0.6.0"
-bodyparser = "0.8.0"
-persistent = "0.4.0"
-serde = "1.0.80"
-serde_derive = "1.0.80"
-serde_json = "1.0.33"
-pretty_env_logger = "0.3.0"
-rusqlite = { version = "0.15.0", features = ["chrono", "serde_json"] }
-chrono = { version = "0.4.6", features = ["serde"] }
-maplit = "1.0.2"
+shared_child = "1.0"
+# Modern web framework replacing Iron
+axum = "0.7"
+tokio = { version = "1.43", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "trace", "cors"] }
+# Updated core dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Database
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "serde_json"] }
+chrono = { version = "0.4", features = ["serde"] }
+# Utilities
+indexmap = { version = "2.6", features = ["serde"] }
+maplit = "1.0"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
-rstest = "0.2"
-
-[dependencies.indexmap]
-version = "1.0.2"
-features = ["serde-1"]
+rstest = "0.23"
 
 [profile.release]
 panic = "abort"
