@@ -1,0 +1,48 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file for libraries (keep for binary)
+# Cargo.lock
+
+# Runtime directories
+tmp_builds/
+tmp_config/
+*.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (don't need in image)
+docs/
+*.md
+
+# Docker
+Dockerfile
+docker-compose*.yml
+compose.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+tests/web_latest/
+tests/web_lts/
+
+# API key (will be mounted as secret)
+apikey
+
+# Temporary files
+*.log
+*.tmp
+

@@ -1,0 +1,139 @@
+# Production Docker Compose configuration for kiisrv
+# This runs the entire kiisrv stack in containers
+#
+# Usage:
+#   docker compose -f compose.prod.yaml up -d
+#   docker compose -f compose.prod.yaml logs -f kiisrv
+#   docker compose -f compose.prod.yaml down
+
+x-controller:
+  &controller-template
+  tmpfs: /tmp
+  environment:
+    - CCACHE_DIR=/mnt/ccache
+    - CCACHE_CONFIGPATH=/mnt/ccache/ccache.conf
+  secrets:
+    - github_apikey
+  volumes:
+    - ccache:/mnt/ccache
+    - ./tmp_config:/mnt/config
+    - ./tmp_builds:/mnt/builds
+
+services:
+  # Main kiisrv web server
+  kiisrv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: kiisrv
+    image: kiisrv-server:latest
+    container_name: kiisrv
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - KIISRV_HOST=0.0.0.0
+      - KIISRV_PORT=3001
+      - RUST_LOG=debug
+      # Host paths for volume mounts when spawning controller containers
+      - HOST_TMP_CONFIG=${PWD}/tmp_config
+      - HOST_TMP_BUILDS=${PWD}/tmp_builds
+    volumes:
+      # Mount Docker socket to allow spawning controller containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent data directories
+      - ./tmp_builds:/app/tmp_builds
+      - ./tmp_config:/app/tmp_config
+      # Database files
+      - ./config.db:/app/config.db
+      - ./stats.db:/app/stats.db
+      # Layout files (read-only)
+      - ./layouts:/app/layouts:ro
+    networks:
+      - kiisrv
+
+  # Controller build environments
+  # Note: These images need to be built but don't need to run continuously.
+  # kiisrv spawns them dynamically via Docker socket when needed.
+  # Using profile 'manual' prevents auto-start while keeping them buildable.
+  controller-050:
+    << : *controller-template
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller
+      args:
+        - TAG=v0.5.0
+    image: kiisrv-controller-050:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-054:
+    << : *controller-template
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller
+      args:
+        - TAG=v0.5.4
+    image: kiisrv-controller-054:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-055:
+    << : *controller-template
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller
+      args:
+        - TAG=v0.5.5
+    image: kiisrv-controller-055:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-056:
+    << : *controller-template
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller
+      args:
+        - TAG=v0.5.6
+    image: kiisrv-controller-056:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-057:
+    << : *controller-template
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: controller
+      args:
+        - TAG=v0.5.7
+    image: kiisrv-controller-057:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+secrets:
+  github_apikey:
+    file: ./apikey
+
+volumes:
+  ccache:
+
+networks:
+  kiisrv:
+    name: kiisrv
+

@@ -112,12 +112,10 @@ async fn get_layout(
     
     tracing::info!("Get layout {:?} ({})", file, rev);
 
-    let result = Command::new("git")
-        .args(&["show", &format!("{}:{}", rev, realpath)])
-        .output()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    let content = String::from_utf8_lossy(&result.stdout).to_string();
+    // Read layout file directly from filesystem
+    // Note: layouts are copied into the container at build time
+    let content = fs::read_to_string(&realpath)
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     Ok((
         StatusCode::OK,
@@ -515,6 +513,15 @@ pub struct ReleaseInfo {
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    // Initialize git repo if it doesn't exist
+    let git_dir = Path::new(".git");
+    if !git_dir.exists() {
+        let _ = Command::new("git")
+            .args(&["init"])
+            .output()
+            .expect("Failed to init git");
+    }
+
     // Check if remote exists, add it if it doesn't
     let remote_exists = Command::new("git")
         .args(&["remote", "get-url", CONTROLLER_GIT_REMOTE])
@@ -536,10 +543,10 @@ async fn main() {
     let queue: HashMap<String, JobEntry> = HashMap::new();
 
     let config_db = Connection::open(Path::new(CONFIG_DB_FILE)).unwrap();
-    config_db.execute(CONFIG_DB_SCHEMA, []).unwrap();
+    config_db.execute_batch(CONFIG_DB_SCHEMA).unwrap();
 
     let stats_db = Connection::open(Path::new(STATS_DB_FILE)).unwrap();
-    stats_db.execute(STATS_DB_SCHEMA, []).unwrap();
+    stats_db.execute_batch(STATS_DB_SCHEMA).unwrap();
 
     let containers = list_containers();
     tracing::info!("\nPossible containers:");
