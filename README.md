@@ -1,5 +1,7 @@
 # KiiSrv
 
+[![Docker Build](https://github.com/kiibohd/kiisrv/actions/workflows/docker-build-publish.yml/badge.svg)](https://github.com/kiibohd/kiisrv/actions/workflows/docker-build-publish.yml)
+
 Build backend for the keyboard firmware configurator.
 
 Modernized in 2025 from 2018 codebase. See [docs/MODERNIZATION.md](docs/MODERNIZATION.md) for details.
@@ -9,6 +11,8 @@ Modernized in 2025 from 2018 codebase. See [docs/MODERNIZATION.md](docs/MODERNIZ
 ### Containerized Deployment (Recommended)
 
 **For production deployment or self-hosting:**
+
+#### Option A: Using Pre-Built Images (Fastest - No Build Required!)
 
 ```bash
 # 1. Install Docker
@@ -24,13 +28,27 @@ touch config.db stats.db
 # 4. Optional: Add GitHub token to avoid rate limits
 echo "your_github_token" > apikey
 
-# 5. Build and start (builds kiisrv + controller images)
-docker compose -f compose.prod.yaml build
-docker compose -f compose.prod.yaml up -d
+# 5. Pull pre-built images and start (2-3 minutes)
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
 
 # 6. Verify it's running
 curl http://localhost:3001/versions
 curl http://localhost:3001/stats
+```
+
+**See [docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md) for pre-built image details.**
+
+#### Option B: Build Locally
+
+```bash
+# 1-4. Same as above
+
+# 5. Build and start (20-30 minutes first time)
+docker compose -f compose.prod.yaml build
+docker compose -f compose.prod.yaml up -d
+
+# 6. Verify (same as above)
 ```
 
 **Important:** Create empty `config.db` and `stats.db` files before running `docker compose up`, otherwise Docker will create them as directories and the server will fail to start.
@@ -160,6 +178,12 @@ ls -la tmp_builds/
 
 ## Documentation
 
+**[docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md)** - Using pre-built Docker images:
+- Deploy without building (2-3 min vs 20-30 min)
+- Self-hosting with pre-built images
+- GitHub Container Registry integration
+- Automated builds and publishing
+
 **[docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)** - Containerized deployment guide:
 - Production deployment (build locally, deploy anywhere)
 - Self-hosting instructions
@@ -196,15 +220,19 @@ kiisrv/
 ├── src/                        # Rust source (Axum server, build orchestration, KLL generation)
 ├── tests/                      # Integration tests (100% passing)
 ├── layouts/                    # Keyboard layout definitions (JSON)
-├── docs/                       # Documentation (11 guides)
-│   ├── CONTAINERIZED_DEPLOYMENT.md   # Primary deployment guide ⭐
+├── docs/                       # Documentation (12 guides)
+│   ├── GITHUB_ACTIONS_DEPLOYMENT.md  # Pre-built images guide ⭐
+│   ├── CONTAINERIZED_DEPLOYMENT.md   # Full deployment guide
 │   ├── IMPLEMENTATION_NOTES.md       # Technical implementation details
 │   ├── RUNNING_LOCALLY.md            # Local development guide
 │   ├── MODERNIZATION.md              # Complete modernization guide
 │   └── ... (7 more)
+├── .github/workflows/          # GitHub Actions CI/CD
+│   └── docker-build-publish.yml      # Automated image builds
 ├── Dockerfile                  # Multi-stage build (kiisrv + controllers)
 ├── compose.yaml                # Docker Compose for controller builds (cargo run)
-├── compose.prod.yaml           # Full containerized stack (production + dev)
+├── compose.prod.yaml           # Full containerized stack (build locally)
+├── compose.ghcr.yaml           # Use pre-built images (fastest) ⭐
 ├── README.md                   # This file (start here!)
 ├── QUICK_START.md              # Fast deployment commands
 ├── DOCUMENTATION_INDEX.md      # Complete docs index

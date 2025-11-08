@@ -6,6 +6,8 @@ Choose your deployment method:
 
 **Best for:** Production, self-hosting, IPv6-only servers
 
+### With Pre-Built Images (Fastest!)
+
 ```bash
 # 1. Install Docker
 curl -fsSL https://get.docker.com | sudo sh
@@ -17,15 +19,31 @@ cd kiisrv
 # 3. Create database files (required before first run)
 touch config.db stats.db
 
-# 4. Build and start
-docker compose -f compose.prod.yaml build
-docker compose -f compose.prod.yaml up -d
+# 4. Pull and start (no build needed!)
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
 
 # Done! Server running on http://localhost:3001
 curl http://localhost:3001/versions
 ```
 
-**See:** [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)
+**Time:** 2-3 minutes (vs 20-30 min building locally)
+
+### Build Locally (If Pre-Built Images Unavailable)
+
+```bash
+# 1-3. Same as above
+
+# 4. Build and start
+docker compose -f compose.prod.yaml build
+docker compose -f compose.prod.yaml up -d
+
+# Done! Server running on http://localhost:3001
+```
+
+**See:** 
+- [docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md) - Pre-built images
+- [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md) - Full deployment guide
 
 **Important:** Create empty `config.db` and `stats.db` files before first run to prevent Docker from creating them as directories.
 
@@ -69,31 +87,33 @@ Point your configurator to `http://localhost:3001`.
 
 ## 🌐 Production VPS Deployment
 
-**For Hetzner or any VPS:**
+**For Hetzner or any VPS (fresh server):**
 
-1. **Build images locally** (on your Mac/workstation):
+1. **SSH to your server and install Docker**:
    ```bash
-   docker compose -f compose.prod.yaml build
-   docker save kiisrv-server:latest | gzip > kiisrv-server.tar.gz
-   docker save kiisrv-controller-057:latest | gzip > controller-057.tar.gz
+   ssh root@your-server-ip
+   curl -fsSL https://get.docker.com | sudo sh
    ```
 
-2. **Transfer to server**:
+2. **Deploy kiisrv** (2-3 minutes):
    ```bash
-   scp kiisrv-server.tar.gz yourserver:/tmp/
-   scp controller-057.tar.gz yourserver:/tmp/
+   sudo mkdir -p /opt/kiisrv && cd /opt/kiisrv
+   curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+   mkdir -p tmp_builds tmp_config && touch config.db stats.db
+   docker compose -f compose.ghcr.yaml pull
+   docker compose -f compose.ghcr.yaml up -d
    ```
 
-3. **Load and run on server**:
+3. **Setup Nginx + SSL**:
    ```bash
-   docker load < /tmp/kiisrv-server.tar.gz
-   docker load < /tmp/controller-057.tar.gz
-   docker compose -f compose.prod.yaml up -d
+   sudo apt install -y nginx certbot python3-certbot-nginx
+   # Configure Nginx (see full guide)
+   sudo certbot --nginx -d yourdomain.com
    ```
 
-4. **Setup Nginx reverse proxy** (see containerized deployment guide)
+**That's it!** Pre-built images make deployment super fast.
 
-**See:** [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)
+**See:** [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md) for complete setup guide
 
 ---
 

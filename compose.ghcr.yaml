@@ -1,0 +1,77 @@
+# Docker Compose configuration for kiisrv using pre-built images from GitHub Container Registry
+# This file allows deployment without building images locally
+#
+# Usage:
+#   docker compose -f compose.ghcr.yaml pull
+#   docker compose -f compose.ghcr.yaml up -d
+#
+# Update GITHUB_USERNAME to match where images are published
+
+x-github-username: &github-username kiibohd
+
+services:
+  kiisrv:
+    image: ghcr.io/*github-username/kiisrv-kiisrv:latest
+    container_name: kiisrv
+    ports:
+      - "${KIISRV_PORT:-3001}:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.db:/app/config.db
+      - ./stats.db:/app/stats.db
+      - ./tmp_builds:/app/tmp_builds
+      - ./tmp_config:/app/tmp_config
+      - ./layouts:/app/layouts:ro
+      - ./apikey:/app/apikey:ro
+    environment:
+      - KIISRV_HOST=0.0.0.0
+      - KIISRV_PORT=3001
+      - HOST_TMP_CONFIG=${PWD}/tmp_config
+      - HOST_TMP_BUILDS=${PWD}/tmp_builds
+    networks:
+      - kiisrv
+    restart: unless-stopped
+
+  # Controller images (used by kiisrv, not started directly)
+  # These have profile: manual so they won't start with 'up'
+  # kiisrv spawns them dynamically via Docker socket
+
+  controller-050:
+    image: ghcr.io/*github-username/kiisrv-controller-050:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-054:
+    image: ghcr.io/*github-username/kiisrv-controller-054:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-055:
+    image: ghcr.io/*github-username/kiisrv-controller-055:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-056:
+    image: ghcr.io/*github-username/kiisrv-controller-056:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+  controller-057:
+    image: ghcr.io/*github-username/kiisrv-controller-057:latest
+    profiles:
+      - manual
+    networks:
+      - kiisrv
+
+networks:
+  kiisrv:
+    driver: bridge
+

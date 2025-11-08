@@ -37,12 +37,55 @@ The kiisrv container has access to the host's Docker socket, allowing it to spaw
 
 ## Deployment Options
 
-### Option 1: Build Locally, Deploy Anywhere (Recommended for IPv6-only servers)
+### Option 1: Using Pre-Built Images (Recommended - Fastest!)
 
 **When to use:**
-- Your VPS can't access GitHub (IPv6-only, firewall, etc.)
-- You want reproducible builds
-- You want to test locally before deploying
+- Fresh VPS deployment
+- Quick setup (2-3 minutes vs 20-30 minutes)
+- Any server with Docker and internet access (IPv4 or IPv6)
+
+**Steps:**
+
+```bash
+# 1. SSH into your VPS
+ssh -p 2222 youruser@your-server
+
+# 2. Create deployment directory
+sudo mkdir -p /opt/kiisrv
+sudo chown $USER:$USER /opt/kiisrv
+cd /opt/kiisrv
+
+# 3. Download compose file for pre-built images
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+
+# 4. Create required files/directories
+mkdir -p tmp_builds tmp_config
+
+# IMPORTANT: Create database files BEFORE starting containers
+# If these don't exist, Docker will create them as directories instead
+touch config.db stats.db
+
+# Optional: Add GitHub API token (avoid rate limits)
+echo "your_github_token_here" > apikey
+
+# 5. Pull pre-built images and start
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
+
+# 6. Verify
+docker compose -f compose.ghcr.yaml ps
+curl http://localhost:3001/stats
+curl http://localhost:3001/versions
+```
+
+**That's it!** No local building, no image transfers, no waiting 30 minutes.
+
+### Option 2: Build Locally, Deploy Anywhere (For Custom Builds)
+
+**When to use:**
+- You've modified the code
+- Pre-built images aren't available yet
+- You want to test local changes before deploying
 
 **Steps:**
 
@@ -67,16 +110,8 @@ scp -P 2222 kiisrv-server.tar.gz youruser@your-server:/tmp/
 scp -P 2222 controller-050.tar.gz youruser@your-server:/tmp/
 scp -P 2222 controller-057.tar.gz youruser@your-server:/tmp/
 
-# 4. Copy compose file and data
-rsync -avz -e "ssh -p 2222" \
-  --exclude target \
-  --exclude tmp_builds \
-  --exclude tmp_config \
-  --exclude .git \
-  compose.prod.yaml \
-  layouts/ \
-  schema/ \
-  youruser@your-server:/opt/kiisrv/
+# 4. Copy compose file
+scp -P 2222 compose.prod.yaml youruser@your-server:/opt/kiisrv/
 
 # 5. On the server: Load images
 ssh -p 2222 youruser@your-server
@@ -87,11 +122,7 @@ docker load < /tmp/controller-057.tar.gz
 
 # 6. Create required files/directories
 mkdir -p tmp_builds tmp_config
-
-# IMPORTANT: Create database files BEFORE starting containers
-# If these don't exist, Docker will create them as directories instead
 touch config.db stats.db
-
 echo "your_github_token_here" > apikey  # Optional
 
 # 7. Start the stack
@@ -102,7 +133,7 @@ docker compose -f compose.prod.yaml ps
 curl http://localhost:3001/stats
 ```
 
-### Option 2: Build on Server
+### Option 3: Build on Server (If Server Has IPv4 GitHub Access)
 
 **When to use:**
 - Your server has IPv4 connectivity and can access GitHub
@@ -110,36 +141,44 @@ curl http://localhost:3001/stats
 
 ```bash
 # On the server
+git clone https://github.com/kiibohd/kiisrv.git /opt/kiisrv
 cd /opt/kiisrv
 
-# Build images
+# Create required files
+mkdir -p tmp_builds tmp_config
+touch config.db stats.db
+
+# Build images (takes 20-30 minutes)
 docker compose -f compose.prod.yaml build
 
 # Start the stack
 docker compose -f compose.prod.yaml up -d
 ```
 
-## Server Setup (Hetzner or Any VPS)
+## Complete VPS Setup from Scratch
 
-### Prerequisites
+This guide walks through setting up kiisrv on a fresh VPS (Hetzner, DigitalOcean, AWS, etc.).
+
+### Step 1: Install Docker
 
 ```bash
-# Install Docker (Debian 12 / Ubuntu 22.04+)
+# SSH into your fresh VPS
+ssh root@your-server-ip
+
+# Install Docker (works on Debian 12, Ubuntu 22.04+, etc.)
 curl -fsSL https://get.docker.com | sudo sh
 
-# Add your user to docker group
+# Add your user to docker group (if using non-root user)
 sudo usermod -aG docker $USER
 
-# Log out and back in
-exit
-# reconnect...
-
-# Verify
+# Verify installation
 docker --version
 docker compose version
+
+# If using non-root user, log out and back in for group to take effect
 ```
 
-### Deploy kiisrv
+### Step 2: Deploy kiisrv
 
 ```bash
 # Create deployment directory
@@ -147,36 +186,43 @@ sudo mkdir -p /opt/kiisrv
 sudo chown $USER:$USER /opt/kiisrv
 cd /opt/kiisrv
 
-# Get the compose file (copy from local or git clone if you have IPv4)
-# See Option 1 above for copying from local
+# Download compose file for pre-built images
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
 
 # Create runtime directories
 mkdir -p tmp_builds tmp_config
 
-# CRITICAL: Create database files BEFORE starting
-# If they don't exist, Docker will create directories instead of files
+# CRITICAL: Create database files as FILES (not directories)
 touch config.db stats.db
 
-# Optional: Add GitHub API key
+# Optional: Add GitHub API key to avoid rate limits
 echo "your_github_token" > apikey
 
-# Start the stack
-docker compose -f compose.prod.yaml up -d
+# Pull pre-built images (2-3 minutes)
+docker compose -f compose.ghcr.yaml pull
 
-# View logs
-docker compose -f compose.prod.yaml logs -f kiisrv
+# Start kiisrv
+docker compose -f compose.ghcr.yaml up -d
+
+# Verify it's running
+docker compose -f compose.ghcr.yaml ps
+curl http://localhost:3001/stats
 ```
 
-### Setup Nginx Reverse Proxy
+You should see JSON output from the stats endpoint. kiisrv is now running on port 3001!
+
+### Step 3: Setup Nginx Reverse Proxy
 
 ```bash
-# Install Nginx
+# Install Nginx and Certbot
+sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
 # Create Nginx config
 sudo tee /etc/nginx/sites-available/kiisrv << 'EOF'
 server {
     listen 80;
+    listen [::]:80;
     server_name configurator.yourdomain.com;
 
     # Long timeouts for firmware compilation
@@ -203,21 +249,32 @@ sudo ln -s /etc/nginx/sites-available/kiisrv /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 
-# Setup SSL
+# Setup SSL (free certificate from Let's Encrypt)
 sudo certbot --nginx -d configurator.yourdomain.com
+
+# Certbot will automatically:
+# - Obtain SSL certificate
+# - Update Nginx config for HTTPS
+# - Setup automatic renewal
 ```
 
-### Firewall Configuration
+### Step 4: Firewall Configuration
 
 ```bash
-# Allow HTTP/HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
+# If using UFW (Ubuntu/Debian)
+sudo ufw allow 22/tcp    # SSH (if not already allowed)
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
 sudo ufw enable
 sudo ufw status
+
+# Verify firewall rules
+sudo ufw status verbose
 ```
 
 ## Management Commands
+
+All commands assume you're in `/opt/kiisrv` and using `compose.ghcr.yaml` (pre-built images).
 
 ### Start/Stop/Restart
 
@@ -225,48 +282,57 @@ sudo ufw status
 cd /opt/kiisrv
 
 # Start
-docker compose -f compose.prod.yaml up -d
+docker compose -f compose.ghcr.yaml up -d
 
 # Stop
-docker compose -f compose.prod.yaml down
+docker compose -f compose.ghcr.yaml down
 
 # Restart
-docker compose -f compose.prod.yaml restart
+docker compose -f compose.ghcr.yaml restart
 
 # Restart just kiisrv (not controllers)
-docker compose -f compose.prod.yaml restart kiisrv
+docker compose -f compose.ghcr.yaml restart kiisrv
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker compose -f compose.prod.yaml logs -f
+docker compose -f compose.ghcr.yaml logs -f
 
 # Just kiisrv
-docker compose -f compose.prod.yaml logs -f kiisrv
+docker compose -f compose.ghcr.yaml logs -f kiisrv
 
 # Last 100 lines
-docker compose -f compose.prod.yaml logs --tail=100 kiisrv
+docker compose -f compose.ghcr.yaml logs --tail=100 kiisrv
 ```
 
-### Updates
+### Updates (Pull New Images)
 
 ```bash
-# 1. Build new images locally (on your Mac)
-cd ~/Developer/forks/kiisrv
-git pull origin modernize
-docker compose -f compose.prod.yaml build kiisrv
-
-# 2. Save and transfer
-docker save kiisrv-server:latest | gzip > kiisrv-server.tar.gz
-scp -P 2222 kiisrv-server.tar.gz youruser@your-server:/tmp/
-
-# 3. On server: Load and restart
-ssh -p 2222 youruser@your-server
-docker load < /tmp/kiisrv-server.tar.gz
 cd /opt/kiisrv
-docker compose -f compose.prod.yaml up -d
+
+# Pull latest images
+docker compose -f compose.ghcr.yaml pull
+
+# Restart with new images
+docker compose -f compose.ghcr.yaml up -d
+
+# Verify update
+curl http://localhost:3001/stats
+```
+
+**Automatic updates with Watchtower** (optional):
+```bash
+# Install Watchtower to auto-update daily
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --interval 86400 \
+  --cleanup \
+  kiisrv
 ```
 
 ### Cleanup
@@ -308,21 +374,23 @@ docker stats --no-stream
 
 ## Self-Hosting Instructions (For End Users)
 
-If you want to self-host kiisrv:
+If you want to self-host kiisrv on your local machine:
 
 ```bash
 # 1. Install Docker
 curl -fsSL https://get.docker.com | sudo sh
 
-# 2. Clone the repository (or download release)
-git clone https://github.com/kiibohd/kiisrv.git
-cd kiisrv
+# 2. Create directory and download compose file
+mkdir -p ~/kiisrv && cd ~/kiisrv
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
 
-# 3. Build images (this takes 15-30 minutes)
-docker compose -f compose.prod.yaml build
+# 3. Create required files
+mkdir -p tmp_builds tmp_config
+touch config.db stats.db
 
-# 4. Start the server
-docker compose -f compose.prod.yaml up -d
+# 4. Pull images and start (2-3 minutes)
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
 
 # 5. Access at http://localhost:3001
 curl http://localhost:3001/stats
@@ -330,18 +398,21 @@ curl http://localhost:3001/stats
 
 That's it! Point your configurator to `http://localhost:3001`.
 
+**To stop:** `docker compose -f compose.ghcr.yaml down`  
+**To update:** `docker compose -f compose.ghcr.yaml pull && docker compose -f compose.ghcr.yaml up -d`
+
 ## Troubleshooting
 
 ### kiisrv container won't start
 
 ```bash
 # Check logs
-docker compose -f compose.prod.yaml logs kiisrv
+docker compose -f compose.ghcr.yaml logs kiisrv
 
 # Common issues:
-# - Port 3001 already in use: Change KIISRV_PORT in compose.prod.yaml
+# - Port 3001 already in use: Change KIISRV_PORT in compose.ghcr.yaml
 # - Database permission errors: Check ownership of *.db files
-# - Docker socket permission denied: User needs to be in group matching socket GID
+# - Docker socket permission denied: User needs to be in docker group
 ```
 
 ### Empty versions endpoint returns {}
@@ -353,20 +424,11 @@ docker exec kiisrv ls -la /app/*.db
 # Check if images are visible
 docker exec kiisrv docker images | grep kiisrv-controller
 
-# If permission denied on docker command:
-# - Rebuild kiisrv image (includes group 991 fix for Mac)
-# - On Linux servers, socket GID may differ - adjust Dockerfile if needed
-```
+# If no images found, pull them:
+docker compose -f compose.ghcr.yaml pull
 
-### Firmware builds fail with "unknown flag" error
-
-```bash
-# Check logs for the exact error
-docker logs kiisrv 2>&1 | grep "unknown"
-
-# This was fixed by switching from 'docker compose run' to 'docker run'
-# Ensure you're using the latest kiisrv-server:latest image
-docker compose -f compose.prod.yaml build kiisrv
+# Restart kiisrv
+docker compose -f compose.ghcr.yaml restart kiisrv
 ```
 
 ### Database files become directories
@@ -375,10 +437,24 @@ docker compose -f compose.prod.yaml build kiisrv
 # This happens if files don't exist before 'docker compose up'
 # Fix:
 cd /opt/kiisrv
-docker compose -f compose.prod.yaml down
+docker compose -f compose.ghcr.yaml down
 rm -rf config.db stats.db  # Remove directories
 touch config.db stats.db   # Create empty files
-docker compose -f compose.prod.yaml up -d
+docker compose -f compose.ghcr.yaml up -d
+```
+
+### Images fail to pull
+
+```bash
+# Check if you can reach GitHub Container Registry
+docker pull ghcr.io/kiibohd/kiisrv-kiisrv:latest
+
+# If this fails, check:
+# 1. Internet connectivity: ping github.com
+# 2. DNS resolution: nslookup ghcr.io
+# 3. Firewall rules: sudo ufw status
+
+# If images don't exist yet (before CI/CD runs), use Option 2 or 3 above
 ```
 
 ### Controller containers not found
@@ -387,8 +463,11 @@ docker compose -f compose.prod.yaml up -d
 # List available images
 docker images | grep kiisrv
 
-# Build missing controller
-docker compose -f compose.prod.yaml build controller-057
+# Pull missing controller images
+docker compose -f compose.ghcr.yaml pull
+
+# Verify they're now available
+docker images | grep controller
 ```
 
 ### Builds failing
@@ -439,17 +518,20 @@ exit
 
 5. **Rate limiting**: Consider adding Nginx rate limiting for public deployments.
 
-## Comparison with Direct Deployment
+## Comparison of Deployment Methods
 
-| Aspect | Containerized | Direct |
-|--------|--------------|--------|
-| **Setup time** | 15 min (image transfer) | 30-45 min (build on server) |
-| **Disk usage** | Same (~10-15GB) | Same |
-| **RAM usage** | Same (~300MB idle) | Same |
-| **IPv6-only VPS** | ✅ Works (build locally) | ❌ Fails (can't clone from GitHub) |
-| **Reproducibility** | ✅ Exact same images | ⚠️ Depends on server state |
-| **Updates** | Transfer new image | Rebuild on server |
-| **Self-hosting** | ✅ Very easy | ⚠️ Requires Rust knowledge |
+| Aspect | Pre-Built Images | Build Locally | Build on Server |
+|--------|------------------|---------------|-----------------|
+| **Setup time** | 2-3 min | 15 min (build + transfer) | 30-45 min |
+| **Disk usage** | ~10-15GB | Same | Same |
+| **RAM usage** | ~300MB idle | Same | Same |
+| **IPv4 needed** | ❌ No | ❌ No | ✅ Yes |
+| **IPv6-only VPS** | ✅ Works | ✅ Works | ⚠️ May fail |
+| **Internet needed** | ✅ Yes (pull images) | ❌ No (on VPS) | ✅ Yes |
+| **Reproducibility** | ✅ Exact same | ✅ Exact same | ⚠️ Varies |
+| **Updates** | Pull new images | Build and transfer | Rebuild on server |
+| **Self-hosting** | ✅ Easiest | ⚠️ Moderate | ⚠️ Complex |
+| **Best for** | Most deployments | Custom builds | Development |
 
 ## Next Steps
 

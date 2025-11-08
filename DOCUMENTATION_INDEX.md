@@ -15,6 +15,7 @@ Complete guide to all documentation files in this repository.
 
 | File | Purpose | When to Use |
 |------|---------|-------------|
+| **[docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md)** | Using pre-built Docker images | Fastest deployment, no build needed |
 | **[docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)** | Production deployment with Docker | Deploying to VPS, self-hosting |
 | **[QUICK_START.md](QUICK_START.md)** | Quick commands for all scenarios | Fast reference |
 | **[RUNNING_LOCALLY.md](RUNNING_LOCALLY.md)** | Local development guide | Testing and development |
@@ -45,12 +46,14 @@ Complete guide to all documentation files in this repository.
 ## 🎯 By Use Case
 
 ### "I want to deploy kiisrv to production"
-1. [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)
-2. [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)
+1. [docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md) - Use pre-built images (fastest)
+2. [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md) - Or build locally
+3. [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)
 
 ### "I want to self-host kiisrv"
-1. [QUICK_START.md](QUICK_START.md) - Containerized section
-2. [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)
+1. [docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md) - Just pull and run (easiest)
+2. [QUICK_START.md](QUICK_START.md) - Quick commands
+3. [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md) - Full guide
 
 ### "I'm developing/contributing to kiisrv"
 1. [README.md](README.md) - Local Development section
