@@ -22,11 +22,15 @@ services:
       - ./stats.db:/app/stats.db
       - ./tmp_builds:/app/tmp_builds
       - ./tmp_config:/app/tmp_config
-      - ./layouts:/app/layouts:ro
-      - ./apikey:/app/apikey:ro
+      # Optional: Mount apikey file if you have a GitHub token (uncomment if you created the file)
+      # - ./apikey:/app/apikey:ro
+      # Optional: Mount custom layouts (uncomment if you want to override built-in layouts)
+      # - ./layouts:/app/layouts:ro
     environment:
       - KIISRV_HOST=0.0.0.0
       - KIISRV_PORT=3001
+      # Uncomment for detailed logging/debugging:
+      # - RUST_LOG=debug
       - HOST_TMP_CONFIG=${PWD}/tmp_config
       - HOST_TMP_BUILDS=${PWD}/tmp_builds
     networks:

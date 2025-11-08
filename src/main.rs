@@ -577,7 +577,10 @@ async fn main() {
     let port = std::env::var("KIISRV_PORT").unwrap_or_else(|_| "3001".to_string());
     let api_host = format!("{}:{}", host, port);
 
-    tracing::info!("\nBuild dispatcher starting.\nListening on {}", api_host);
+    tracing::info!("========================================");
+    tracing::info!("KiiSrv Build Server starting...");
+    tracing::info!("Server listening on: http://{}", api_host);
+    tracing::info!("========================================");
 
     let listener = tokio::net::TcpListener::bind(&api_host)
         .await
