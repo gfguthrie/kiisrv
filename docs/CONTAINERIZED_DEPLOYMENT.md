@@ -195,6 +195,10 @@ mkdir -p tmp_builds tmp_config
 # CRITICAL: Create database files as FILES (not directories)
 touch config.db stats.db
 
+# Set proper permissions (container runs as uid 1000)
+chmod 666 config.db stats.db
+chmod 777 tmp_builds tmp_config
+
 # Optional: Add GitHub API key to avoid rate limits
 echo "your_github_token" > apikey
 
@@ -413,6 +417,20 @@ docker compose -f compose.ghcr.yaml logs kiisrv
 # - Port 3001 already in use: Change KIISRV_PORT in compose.ghcr.yaml
 # - Database permission errors: Check ownership of *.db files
 # - Docker socket permission denied: User needs to be in docker group
+```
+
+### Database permission errors (ReadOnly error)
+
+```bash
+# Error: "attempt to write a readonly database"
+# This happens when database files have wrong permissions
+
+# Fix:
+chmod 666 config.db stats.db
+chmod 777 tmp_builds tmp_config
+
+# Restart
+docker compose -f compose.ghcr.yaml restart kiisrv
 ```
 
 ### Empty versions endpoint returns {}

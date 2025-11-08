@@ -75,6 +75,7 @@ EOF
 # 4. Create required files
 mkdir -p tmp_builds tmp_config
 touch config.db stats.db
+chmod 666 config.db stats.db  # Allow container to write
 echo "your_github_token" > apikey  # Optional
 
 # 5. Pull and start (no build needed!)

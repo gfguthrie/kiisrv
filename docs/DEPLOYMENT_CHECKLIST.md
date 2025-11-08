@@ -90,6 +90,10 @@ Use this checklist when deploying kiisrv to production.
   # CRITICAL: Create database files as FILES (not directories)
   touch config.db stats.db
   
+  # Set proper permissions (container runs as uid 1000)
+  chmod 666 config.db stats.db
+  chmod 777 tmp_builds tmp_config
+  
   # Verify they're files:
   file config.db stats.db
   # Should show: "empty" (not "directory")

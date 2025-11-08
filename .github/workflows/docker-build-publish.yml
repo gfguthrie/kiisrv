@@ -152,6 +152,9 @@ jobs:
         run: |
           mkdir -p tmp_builds tmp_config
           touch config.db stats.db
+          # Set permissions so container can write (container runs as uid 1000)
+          chmod 666 config.db stats.db
+          chmod 777 tmp_builds tmp_config
       
       - name: Start services
         run: docker compose -f compose.prod.yaml up -d

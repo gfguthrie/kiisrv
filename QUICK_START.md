@@ -18,6 +18,7 @@ cd kiisrv
 
 # 3. Create database files (required before first run)
 touch config.db stats.db
+chmod 666 config.db stats.db  # Allow container to write
 
 # 4. Pull and start (no build needed!)
 docker compose -f compose.ghcr.yaml pull
@@ -100,6 +101,7 @@ Point your configurator to `http://localhost:3001`.
    sudo mkdir -p /opt/kiisrv && cd /opt/kiisrv
    curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
    mkdir -p tmp_builds tmp_config && touch config.db stats.db
+   chmod 666 config.db stats.db  # Allow container to write
    docker compose -f compose.ghcr.yaml pull
    docker compose -f compose.ghcr.yaml up -d
    ```

@@ -24,6 +24,7 @@ cd kiisrv
 
 # 3. Create database files (required before first start)
 touch config.db stats.db
+chmod 666 config.db stats.db  # Allow container to write
 
 # 4. Optional: Add GitHub token to avoid rate limits
 echo "your_github_token" > apikey
