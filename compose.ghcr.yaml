@@ -1,19 +1,18 @@
 # Docker Compose configuration for kiisrv using pre-built images from GitHub Container Registry
 # This file allows deployment without building images locally
 #
+# To use with your fork:
+#   1. Replace 'kiibohd' with your GitHub username throughout this file
+#   2. Replace 'latest' with your tag (e.g., 'containerize', 'v1.0.0') if needed
+#   3. Quick find-replace: sed -i 's/kiibohd/YOUR_USERNAME/g' compose.ghcr.yaml
+#
 # Usage:
 #   docker compose -f compose.ghcr.yaml pull
 #   docker compose -f compose.ghcr.yaml up -d
-#
-# Update GITHUB_USERNAME to match where images are published
-# Update IMAGE_TAG to use a specific version (e.g., containerize, v1.0.0, latest)
-
-x-github-username: &github-username kiibohd
-x-image-tag: &image-tag latest
 
 services:
   kiisrv:
-    image: ghcr.io/*github-username/kiisrv-kiisrv:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-kiisrv:latest
     container_name: kiisrv
     ports:
       - "${KIISRV_PORT:-3001}:3001"
@@ -39,35 +38,35 @@ services:
   # kiisrv spawns them dynamically via Docker socket
 
   controller-050:
-    image: ghcr.io/*github-username/kiisrv-controller-050:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-controller-050:latest
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-054:
-    image: ghcr.io/*github-username/kiisrv-controller-054:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-controller-054:latest
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-055:
-    image: ghcr.io/*github-username/kiisrv-controller-055:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-controller-055:latest
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-056:
-    image: ghcr.io/*github-username/kiisrv-controller-056:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-controller-056:latest
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-057:
-    image: ghcr.io/*github-username/kiisrv-controller-057:*image-tag
+    image: ghcr.io/kiibohd/kiisrv-controller-057:latest
     profiles:
       - manual
     networks:
