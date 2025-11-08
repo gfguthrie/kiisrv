@@ -49,8 +49,19 @@ on:
 
 ### Images Published
 
-After the workflow runs, images are available at:
+After the workflow runs, images are available at both registries:
 
+**Docker Hub (recommended for IPv6-only servers):**
+```
+{dockerhub_username}/kiisrv-kiisrv:latest
+{dockerhub_username}/kiisrv-controller-050:latest
+{dockerhub_username}/kiisrv-controller-054:latest
+{dockerhub_username}/kiisrv-controller-055:latest
+{dockerhub_username}/kiisrv-controller-056:latest
+{dockerhub_username}/kiisrv-controller-057:latest
+```
+
+**GitHub Container Registry:**
 ```
 ghcr.io/{github_username}/kiisrv-kiisrv:latest
 ghcr.io/{github_username}/kiisrv-controller-050:latest
@@ -62,7 +73,24 @@ ghcr.io/{github_username}/kiisrv-controller-057:latest
 
 ## Next Steps
 
-### 1. Push to GitHub
+### 1. Set Up Docker Hub (Required)
+
+1. Go to https://hub.docker.com/ and sign in
+2. Go to Account Settings → Security → Personal Access Tokens
+3. Click "Generate New Token"
+   - Name: `github-actions-kiisrv`
+   - Permissions: Read, Write, Delete
+4. Copy the token (you can't see it again!)
+
+### 2. Add GitHub Secrets
+
+1. Go to your repo: `https://github.com/{your-username}/kiisrv`
+2. Click Settings → Secrets and variables → Actions
+3. Add two secrets:
+   - `DOCKERHUB_USERNAME` = your Docker Hub username
+   - `DOCKERHUB_TOKEN` = the token you copied
+
+### 3. Push to GitHub
 
 ```bash
 git add .
@@ -70,7 +98,7 @@ git commit -m "Add GitHub Actions for automated Docker builds"
 git push origin containerize
 ```
 
-### 2. Wait for Workflow to Complete
+### 4. Wait for Workflow to Complete
 
 1. Go to your repository on GitHub
 2. Click the **Actions** tab
@@ -78,7 +106,7 @@ git push origin containerize
 4. Initial build takes ~30-45 minutes (builds 6 images in parallel)
 5. Subsequent builds are faster (~10-15 min) due to caching
 
-### 3. Verify Images Published
+### 5. Verify Images Published
 
 After workflow completes:
 
@@ -90,7 +118,7 @@ docker pull ghcr.io/{your_username}/kiisrv-kiisrv:containerize
 # Navigate to: https://github.com/{your_username}/kiisrv/pkgs/container/kiisrv-kiisrv
 ```
 
-### 4. Update compose.ghcr.yaml (If Needed)
+### 6. Test Deployment
 
 The `compose.ghcr.yaml` file has a placeholder for the GitHub username:
 
@@ -111,22 +139,37 @@ Or, users can override it when pulling:
 sed -i 's/kiibohd/your-username/g' compose.ghcr.yaml
 ```
 
-### 5. Test Deployment with Pre-Built Images
-
+**Using Docker Hub (recommended for IPv6-only servers):**
 ```bash
 # On a clean system (or new directory)
-curl -O https://raw.githubusercontent.com/{your_username}/kiisrv/containerize/compose.ghcr.yaml
+curl -O https://raw.githubusercontent.com/{your_username}/kiisrv/containerize/compose.dockerhub.yaml
+
+# Replace username in file
+sed -i 's/your-dockerhub-username/{your_dockerhub_username}/g' compose.dockerhub.yaml
 
 # Create required files
 mkdir -p tmp_builds tmp_config
 touch config.db stats.db
+chmod 666 config.db stats.db
 
 # Pull and start
-docker compose -f compose.ghcr.yaml pull
-docker compose -f compose.ghcr.yaml up -d
+docker compose -f compose.dockerhub.yaml pull
+docker compose -f compose.dockerhub.yaml up -d
 
 # Verify
 curl http://localhost:3001/stats
+```
+
+**Using GitHub Container Registry:**
+```bash
+curl -O https://raw.githubusercontent.com/{your_username}/kiisrv/containerize/compose.ghcr.yaml
+
+# Replace username in file
+sed -i 's/kiibohd/{your_github_username}/g' compose.ghcr.yaml
+
+# Create and start (same as above)
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
 ```
 
 ## For End Users

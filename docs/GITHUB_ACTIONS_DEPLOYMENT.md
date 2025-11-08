@@ -18,19 +18,35 @@ Replace `{owner}` with the GitHub username or organization.
 
 ## Quick Deployment (No Build Required!)
 
-### Self-Hosting with Pre-Built Images
+### Choosing a Registry
 
-Instead of building locally, pull pre-built images from GitHub Container Registry:
+**Docker Hub** (recommended for IPv6-only servers):
+- ✅ Excellent IPv6 support globally
+- ✅ Works reliably on IPv6-only VPS
+- ✅ Use `compose.dockerhub.yaml`
+
+**GitHub Container Registry**:
+- ✅ Free for public repos
+- ⚠️ IPv6 support varies by region
+- ⚠️ May not work on some IPv6-only servers
+- ✅ Use `compose.ghcr.yaml`
+
+### Self-Hosting with Pre-Built Images (Docker Hub)
+
+Instead of building locally, pull pre-built images from Docker Hub:
 
 ```bash
 # 1. Create deployment directory
 mkdir -p ~/kiisrv && cd ~/kiisrv
 
-# 2. Download compose file
-curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.prod.yaml
+# 2. Download compose file for Docker Hub
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.dockerhub.yaml
 
-# 3. Create a custom compose file that uses pre-built images
-cat > compose.ghcr.yaml << 'EOF'
+# 3. Edit to use your Docker Hub username
+sed -i 's/your-dockerhub-username/YOUR_USERNAME/g' compose.dockerhub.yaml
+
+# Or create a custom compose file:
+cat > compose.dockerhub.yaml << 'EOF'
 services:
   kiisrv:
     image: ghcr.io/kiibohd/kiisrv-kiisrv:latest

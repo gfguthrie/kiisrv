@@ -187,7 +187,11 @@ sudo chown $USER:$USER /opt/kiisrv
 cd /opt/kiisrv
 
 # Download compose file for pre-built images
-curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+# Use compose.dockerhub.yaml for IPv6-only servers (better compatibility)
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.dockerhub.yaml
+
+# Edit the file to use your Docker Hub username (replace 'your-dockerhub-username')
+# You can use sed or a text editor
 
 # Create runtime directories
 mkdir -p tmp_builds tmp_config
@@ -203,15 +207,17 @@ chmod 777 tmp_builds tmp_config
 echo "your_github_token" > apikey
 
 # Pull pre-built images (2-3 minutes)
-docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.dockerhub.yaml pull
 
 # Start kiisrv
-docker compose -f compose.ghcr.yaml up -d
+docker compose -f compose.dockerhub.yaml up -d
 
 # Verify it's running
-docker compose -f compose.ghcr.yaml ps
+docker compose -f compose.dockerhub.yaml ps
 curl http://localhost:3001/stats
 ```
+
+**Note:** Docker Hub has better IPv6 support than ghcr.io for most regions.
 
 You should see JSON output from the stats endpoint. kiisrv is now running on port 3001!
 

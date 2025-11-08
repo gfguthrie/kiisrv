@@ -16,6 +16,7 @@ curl -fsSL https://get.docker.com | sudo sh
 
 # 2. Create directory and get compose file
 mkdir -p ~/kiisrv && cd ~/kiisrv
+# For IPv6-only servers, use compose.dockerhub.yaml instead (better compatibility)
 curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
 
 # 3. Create required files

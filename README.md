@@ -30,6 +30,7 @@ chmod 666 config.db stats.db  # Allow container to write
 echo "your_github_token" > apikey
 
 # 5. Pull pre-built images and start (2-3 minutes)
+# Use compose.dockerhub.yaml for IPv6-only servers (better compatibility)
 docker compose -f compose.ghcr.yaml pull
 docker compose -f compose.ghcr.yaml up -d
 
