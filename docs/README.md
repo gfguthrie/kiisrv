@@ -4,28 +4,56 @@ This directory contains documentation for the kiisrv keyboard firmware build sys
 
 ## Documentation Files
 
-### [CONTAINERIZED_DEPLOYMENT.md](./CONTAINERIZED_DEPLOYMENT.md) - START HERE FOR DEPLOYMENT
+### [GITHUB_ACTIONS_DEPLOYMENT.md](./GITHUB_ACTIONS_DEPLOYMENT.md) - PRE-BUILT IMAGES ⭐
+Guide for using pre-built Docker images from GitHub Container Registry.
+- **No building required** - just pull and run
+- **2-3 minute deployment** vs 20-30 minutes
+- **Self-hosting** made incredibly easy
+- **IPv6 compatible** - works everywhere
+
+### [GITHUB_ACTIONS_SETUP.md](./GITHUB_ACTIONS_SETUP.md) - CI/CD SETUP
+Instructions for setting up automated builds and publishing.
+- **GitHub Actions workflow** configuration
+- **Image publishing** to GitHub Container Registry
+- **Testing and verification** steps
+- **Customization options**
+
+### [CONTAINERIZED_DEPLOYMENT.md](./CONTAINERIZED_DEPLOYMENT.md) - FULL DEPLOYMENT GUIDE
 Complete guide for deploying containerized kiisrv.
 - **Build locally, deploy anywhere** (solves IPv6 issues)
 - **Self-hosting** instructions for end users
 - **Production setup** with Nginx and SSL
 - **Troubleshooting** common issues
 
-### [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md) - Technical Details
+### [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - PRODUCTION CHECKLIST
+Step-by-step checklist for production deployments.
+- **Pre-deployment** verification
+- **Server setup** procedures
+- **Network configuration**
+- **Post-deployment** validation
+
+### [IMPLEMENTATION_NOTES.md](./IMPLEMENTATION_NOTES.md) - TECHNICAL DETAILS
 Deep dive into containerization implementation.
 - **Code changes** required for containerization
 - **Challenge-solution** breakdown
 - **Docker socket** pattern explanation
 - **Backward compatibility** with cargo run
 
-### [MODERNIZATION.md](./MODERNIZATION.md) - Modernization Overview
+### [RUNNING_LOCALLY.md](./RUNNING_LOCALLY.md) - LOCAL DEVELOPMENT
+Quick reference for running kiisrv locally during development.
+- **Foreground vs background** modes
+- **Building specific controllers**
+- **Development workflow**
+- **Testing procedures**
+
+### [MODERNIZATION.md](./MODERNIZATION.md) - MODERNIZATION OVERVIEW
 Complete overview of the 2025 modernization effort.
 - **What changed:** Rust framework, dependencies, Docker setup
 - **Docker architecture:** Multi-stage build explanation
 - **GCC compatibility:** Why `-fcommon` is needed
 - **Known issues:** Build warnings and test failures
 
-### [GCC_COMPATIBILITY.md](./GCC_COMPATIBILITY.md) - GCC Fix Details
+### [GCC_COMPATIBILITY.md](./GCC_COMPATIBILITY.md) - GCC FIX DETAILS
 Technical deep-dive into the GCC 12+ compatibility fix.
 - Detailed explanation of linker errors
 - Why old firmware code breaks with modern GCC

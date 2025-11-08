@@ -8,15 +8,18 @@ Choose your deployment method:
 
 ### With Pre-Built Images (Fastest!)
 
+**No source code needed - just download the compose file!**
+
 ```bash
 # 1. Install Docker
 curl -fsSL https://get.docker.com | sudo sh
 
-# 2. Get kiisrv
-git clone https://github.com/kiibohd/kiisrv.git
-cd kiisrv
+# 2. Create directory and get compose file
+mkdir -p ~/kiisrv && cd ~/kiisrv
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
 
-# 3. Create database files (required before first run)
+# 3. Create required files
+mkdir -p tmp_builds tmp_config
 touch config.db stats.db
 chmod 666 config.db stats.db  # Allow container to write
 
@@ -28,18 +31,32 @@ docker compose -f compose.ghcr.yaml up -d
 curl http://localhost:3001/versions
 ```
 
-**Time:** 2-3 minutes (vs 20-30 min building locally)
+**Time:** 2-3 minutes (vs 20-30 min building locally)  
+**Space:** ~15GB for images (vs entire repo + build artifacts)
 
 ### Build Locally (If Pre-Built Images Unavailable)
 
-```bash
-# 1-3. Same as above
+**Requires cloning the repo for source code and Dockerfiles.**
 
-# 4. Build and start
+```bash
+# 1. Install Docker
+curl -fsSL https://get.docker.com | sudo sh
+
+# 2. Clone the repository
+git clone https://github.com/kiibohd/kiisrv.git
+cd kiisrv
+
+# 3. Create required files
+mkdir -p tmp_builds tmp_config
+touch config.db stats.db
+chmod 666 config.db stats.db
+
+# 4. Build and start (20-30 minutes first time)
 docker compose -f compose.prod.yaml build
 docker compose -f compose.prod.yaml up -d
 
 # Done! Server running on http://localhost:3001
+curl http://localhost:3001/versions
 ```
 
 **See:** 
@@ -76,13 +93,18 @@ cargo run
 If you just want to run your own kiisrv instance:
 
 ```bash
-# Requires: Docker only (no Rust, no build tools)
-git clone https://github.com/kiibohd/kiisrv.git
-cd kiisrv
-docker compose -f compose.prod.yaml up -d
+# Requires: Docker only (no Rust, no build tools, no git clone!)
+mkdir -p ~/kiisrv && cd ~/kiisrv
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+mkdir -p tmp_builds tmp_config && touch config.db stats.db
+chmod 666 config.db stats.db
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
 ```
 
 Point your configurator to `http://localhost:3001`.
+
+**That's it!** No repo cloning, no building - just pull and run.
 
 ---
 
@@ -121,9 +143,9 @@ Point your configurator to `http://localhost:3001`.
 
 ## Common Issues
 
-### IPv6-only server can't clone from GitHub
-✅ **Solution:** Build images locally, transfer via rsync or scp  
-📖 **Guide:** [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md#option-1-build-locally-deploy-anywhere-recommended-for-ipv6-only-servers)
+### IPv6-only server can't pull images
+✅ **Solution:** Use pre-built images (ghcr.io supports IPv6) or build locally and transfer  
+📖 **Guide:** [docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md#deployment-options)
 
 ### "cargo: command not found"
 ✅ **Solution:** Install Rust or use containerized deployment  

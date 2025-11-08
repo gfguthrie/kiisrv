@@ -6,12 +6,14 @@
 #   docker compose -f compose.ghcr.yaml up -d
 #
 # Update GITHUB_USERNAME to match where images are published
+# Update IMAGE_TAG to use a specific version (e.g., containerize, v1.0.0, latest)
 
 x-github-username: &github-username kiibohd
+x-image-tag: &image-tag latest
 
 services:
   kiisrv:
-    image: ghcr.io/*github-username/kiisrv-kiisrv:latest
+    image: ghcr.io/*github-username/kiisrv-kiisrv:*image-tag
     container_name: kiisrv
     ports:
       - "${KIISRV_PORT:-3001}:3001"
@@ -37,35 +39,35 @@ services:
   # kiisrv spawns them dynamically via Docker socket
 
   controller-050:
-    image: ghcr.io/*github-username/kiisrv-controller-050:latest
+    image: ghcr.io/*github-username/kiisrv-controller-050:*image-tag
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-054:
-    image: ghcr.io/*github-username/kiisrv-controller-054:latest
+    image: ghcr.io/*github-username/kiisrv-controller-054:*image-tag
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-055:
-    image: ghcr.io/*github-username/kiisrv-controller-055:latest
+    image: ghcr.io/*github-username/kiisrv-controller-055:*image-tag
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-056:
-    image: ghcr.io/*github-username/kiisrv-controller-056:latest
+    image: ghcr.io/*github-username/kiisrv-controller-056:*image-tag
     profiles:
       - manual
     networks:
       - kiisrv
 
   controller-057:
-    image: ghcr.io/*github-username/kiisrv-controller-057:latest
+    image: ghcr.io/*github-username/kiisrv-controller-057:*image-tag
     profiles:
       - manual
     networks:

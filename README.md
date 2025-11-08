@@ -221,13 +221,16 @@ kiisrv/
 ├── src/                        # Rust source (Axum server, build orchestration, KLL generation)
 ├── tests/                      # Integration tests (100% passing)
 ├── layouts/                    # Keyboard layout definitions (JSON)
-├── docs/                       # Documentation (12 guides)
+├── docs/                       # Documentation (11 guides)
 │   ├── GITHUB_ACTIONS_DEPLOYMENT.md  # Pre-built images guide ⭐
+│   ├── GITHUB_ACTIONS_SETUP.md       # CI/CD setup instructions
 │   ├── CONTAINERIZED_DEPLOYMENT.md   # Full deployment guide
+│   ├── DEPLOYMENT_CHECKLIST.md       # Production deployment steps
 │   ├── IMPLEMENTATION_NOTES.md       # Technical implementation details
 │   ├── RUNNING_LOCALLY.md            # Local development guide
+│   ├── CONTAINERIZATION_SUMMARY.md   # Containerization overview
 │   ├── MODERNIZATION.md              # Complete modernization guide
-│   └── ... (7 more)
+│   └── ... (3 more)
 ├── .github/workflows/          # GitHub Actions CI/CD
 │   └── docker-build-publish.yml      # Automated image builds
 ├── Dockerfile                  # Multi-stage build (kiisrv + controllers)

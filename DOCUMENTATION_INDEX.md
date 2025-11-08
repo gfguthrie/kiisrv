@@ -16,9 +16,10 @@ Complete guide to all documentation files in this repository.
 | File | Purpose | When to Use |
 |------|---------|-------------|
 | **[docs/GITHUB_ACTIONS_DEPLOYMENT.md](docs/GITHUB_ACTIONS_DEPLOYMENT.md)** | Using pre-built Docker images | Fastest deployment, no build needed |
+| **[docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)** | Setting up CI/CD pipeline | Initial repository setup |
 | **[docs/CONTAINERIZED_DEPLOYMENT.md](docs/CONTAINERIZED_DEPLOYMENT.md)** | Production deployment with Docker | Deploying to VPS, self-hosting |
 | **[QUICK_START.md](QUICK_START.md)** | Quick commands for all scenarios | Fast reference |
-| **[RUNNING_LOCALLY.md](RUNNING_LOCALLY.md)** | Local development guide | Testing and development |
+| **[docs/RUNNING_LOCALLY.md](docs/RUNNING_LOCALLY.md)** | Local development guide | Testing and development |
 
 ### Technical Documentation
 
@@ -33,9 +34,7 @@ Complete guide to all documentation files in this repository.
 | File | Purpose | Audience |
 |------|---------|----------|
 | **[docs/CONTAINERIZATION_SUMMARY.md](docs/CONTAINERIZATION_SUMMARY.md)** | Containerization overview | Quick reference |
-| **[docs/CONTAINERIZATION_CHANGES.md](docs/CONTAINERIZATION_CHANGES.md)** | What changed during containerization | Migration guide |
 | **[docs/DEPLOYMENT_CONTEXT.md](docs/DEPLOYMENT_CONTEXT.md)** | Context for AI assistants | Copy-paste reference |
-| **[docs/RUNNING_LOCALLY.md](docs/RUNNING_LOCALLY.md)** | Local development reference | Development |
 
 ### Checklists and Procedures
 
@@ -121,12 +120,13 @@ kiisrv/
 ├── DOCUMENTATION_INDEX.md             # This file - master index
 └── docs/
     ├── README.md                      # Docs directory index
+    ├── GITHUB_ACTIONS_DEPLOYMENT.md   # Pre-built images guide ⭐
+    ├── GITHUB_ACTIONS_SETUP.md        # CI/CD setup instructions
     ├── CONTAINERIZED_DEPLOYMENT.md    # Primary deployment guide
     ├── DEPLOYMENT_CHECKLIST.md        # Production deployment checklist
     ├── IMPLEMENTATION_NOTES.md        # Technical deep-dive
     ├── RUNNING_LOCALLY.md             # Local development guide
     ├── CONTAINERIZATION_SUMMARY.md    # Containerization overview
-    ├── CONTAINERIZATION_CHANGES.md    # What changed in code/config
     ├── DEPLOYMENT_CONTEXT.md          # AI assistant context
     ├── MODERNIZATION.md               # 2025 modernization story
     └── GCC_COMPATIBILITY.md           # GCC 12+ fix details
@@ -139,8 +139,9 @@ kiisrv/
 - docs/DEPLOYMENT_CHECKLIST.md - Production deployment steps
 - docs/IMPLEMENTATION_NOTES.md - Technical implementation deep-dive
 - docs/CONTAINERIZATION_SUMMARY.md - Containerization overview
-- docs/CONTAINERIZATION_CHANGES.md - Code and config changes
 - docs/RUNNING_LOCALLY.md - Local development guide
+- docs/GITHUB_ACTIONS_DEPLOYMENT.md - Pre-built images guide
+- docs/GITHUB_ACTIONS_SETUP.md - CI/CD setup instructions
 - QUICK_START.md - Fast deployment commands
 - DOCUMENTATION_INDEX.md - This master index
 
