@@ -20,6 +20,20 @@ REGISTRY_OWNER="${2:-kiibohd}"
 TAG="${3:-latest}"
 CONTROLLERS_ARG="${4:-057}"  # Default to latest only
 
+# Validate compose file exists
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "Error: Compose file not found: $COMPOSE_FILE"
+    echo ""
+    echo "Usage: $0 [compose-file] [registry-owner] [tag] [controllers]"
+    echo ""
+    echo "Examples:"
+    echo "  $0                                    # Use compose.ghcr.yaml (default)"
+    echo "  $0 compose.dockerhub.yaml             # Use Docker Hub compose file"
+    echo "  $0 compose.ghcr.yaml kiibohd latest   # Pull latest (057 only)"
+    echo "  $0 compose.ghcr.yaml kiibohd latest all  # Pull all controllers"
+    exit 1
+fi
+
 # Parse controller versions
 if [ "$CONTROLLERS_ARG" = "all" ]; then
     CONTROLLERS=("050" "054" "055" "056" "057")
