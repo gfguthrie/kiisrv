@@ -1,7 +1,12 @@
 # Production Docker Compose configuration for kiisrv
 # This runs the entire kiisrv stack in containers
 #
+# Setup:
+#   1. Find your docker GID: getent group docker | cut -d: -f3
+#   2. Update the group_add section in the kiisrv service below
+#
 # Usage:
+#   docker compose -f compose.prod.yaml build
 #   docker compose -f compose.prod.yaml up -d
 #   docker compose -f compose.prod.yaml logs -f kiisrv
 #   docker compose -f compose.prod.yaml down
@@ -29,6 +34,14 @@ services:
     image: kiisrv-server:latest
     container_name: kiisrv
     restart: unless-stopped
+    
+    # Docker socket permissions: Add docker group to container user
+    # This allows kiisrv to spawn controller containers
+    # Find your GID with: getent group docker | cut -d: -f3
+    # Common values: 999 (Debian/Ubuntu), 998 (some systems)
+    group_add:
+      - "999"  # IMPORTANT: Replace with your actual docker group GID
+    
     ports:
       - "3001:3001"
     environment:

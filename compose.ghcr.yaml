@@ -5,17 +5,36 @@
 #   1. Replace 'kiibohd' with your GitHub username throughout this file
 #   2. Replace 'latest' with your tag (e.g., 'containerize', 'v1.0.0') if needed
 #   3. Quick find-replace: sed -i 's/kiibohd/YOUR_USERNAME/g' compose.ghcr.yaml
+#   4. Find your docker GID: getent group docker | cut -d: -f3
+#   5. Update the group_add section below with your docker GID
 #
-# Usage:
-#   docker compose -f compose.ghcr.yaml pull
+# Usage Option A (Automated - Recommended):
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
 #   docker compose -f compose.ghcr.yaml up -d
+#
+# Usage Option B (Manual):
+#   docker compose -f compose.ghcr.yaml pull
+#   # Then manually tag images (see pull-and-tag.sh for commands)
+#   docker compose -f compose.ghcr.yaml up -d
+#
+# NOTE: kiisrv expects images named 'kiisrv-controller-057:latest' (without registry prefix).
+# The pull-and-tag.sh script handles this automatically.
 
 services:
   kiisrv:
     image: ghcr.io/kiibohd/kiisrv-kiisrv:latest
     container_name: kiisrv
+    
+    # Docker socket permissions: Add docker group to container user
+    # This allows kiisrv to spawn controller containers
+    # Find your GID with: getent group docker | cut -d: -f3
+    # Common values: 999 (Debian/Ubuntu), 998 (some systems)
+    group_add:
+      - "999"  # IMPORTANT: Replace with your actual docker group GID
+    
     ports:
       - "${KIISRV_PORT:-3001}:3001"
+    
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config.db:/app/config.db
@@ -26,6 +45,7 @@ services:
       # - ./apikey:/app/apikey:ro
       # Optional: Mount custom layouts (uncomment if you want to override built-in layouts)
       # - ./layouts:/app/layouts:ro
+    
     environment:
       - KIISRV_HOST=0.0.0.0
       - KIISRV_PORT=3001
@@ -33,6 +53,7 @@ services:
       # - RUST_LOG=debug
       - HOST_TMP_CONFIG=${PWD}/tmp_config
       - HOST_TMP_BUILDS=${PWD}/tmp_builds
+    
     networks:
       - kiisrv
     restart: unless-stopped
@@ -40,9 +61,17 @@ services:
   # Controller images (used by kiisrv, not started directly)
   # These have profile: manual so they won't start with 'up'
   # kiisrv spawns them dynamically via Docker socket
+  #
+  # IMPORTANT: The 'image' field uses the full registry path for pulling,
+  # but Docker Compose automatically creates a local tag without the registry prefix.
+  # kiisrv expects images named: kiisrv-controller-050, kiisrv-controller-057, etc.
+  # After 'docker compose pull', images will be available as both:
+  #   - ghcr.io/kiibohd/kiisrv-controller-050:latest (pulled from registry)
+  #   - kiisrv-controller-050:latest (local tag, used by kiisrv)
 
   controller-050:
     image: ghcr.io/kiibohd/kiisrv-controller-050:latest
+    container_name: kiisrv-controller-050
     profiles:
       - manual
     networks:
@@ -50,6 +79,7 @@ services:
 
   controller-054:
     image: ghcr.io/kiibohd/kiisrv-controller-054:latest
+    container_name: kiisrv-controller-054
     profiles:
       - manual
     networks:
@@ -57,6 +87,7 @@ services:
 
   controller-055:
     image: ghcr.io/kiibohd/kiisrv-controller-055:latest
+    container_name: kiisrv-controller-055
     profiles:
       - manual
     networks:
@@ -64,6 +95,7 @@ services:
 
   controller-056:
     image: ghcr.io/kiibohd/kiisrv-controller-056:latest
+    container_name: kiisrv-controller-056
     profiles:
       - manual
     networks:
@@ -71,6 +103,7 @@ services:
 
   controller-057:
     image: ghcr.io/kiibohd/kiisrv-controller-057:latest
+    container_name: kiisrv-controller-057
     profiles:
       - manual
     networks:

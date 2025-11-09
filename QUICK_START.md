@@ -8,24 +8,28 @@ Choose your deployment method:
 
 ### With Pre-Built Images (Fastest!)
 
-**No source code needed - just download the compose file!**
+**Minimal setup - just download compose file and helper script!**
 
 ```bash
 # 1. Install Docker
 curl -fsSL https://get.docker.com | sudo sh
 
-# 2. Create directory and get compose file
+# 2. Create directory and download files
 mkdir -p ~/kiisrv && cd ~/kiisrv
 # For IPv6-only servers, use compose.dockerhub.yaml instead (better compatibility)
 curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/pull-and-tag.sh
+chmod +x pull-and-tag.sh
 
 # 3. Create required files
 mkdir -p tmp_builds tmp_config
 touch config.db stats.db
 chmod 666 config.db stats.db  # Allow container to write
 
-# 4. Pull and start (no build needed!)
-docker compose -f compose.ghcr.yaml pull
+# 4. Pull images and tag them correctly (the script handles registry differences)
+./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+
+# 5. Start kiisrv
 docker compose -f compose.ghcr.yaml up -d
 
 # Done! Server running on http://localhost:3001
@@ -34,6 +38,8 @@ curl http://localhost:3001/versions
 
 **Time:** 2-3 minutes (vs 20-30 min building locally)  
 **Space:** ~15GB for images (vs entire repo + build artifacts)
+
+**Why the `pull-and-tag.sh` script?** kiisrv expects images named `kiisrv-controller-057`, but registries store them as `ghcr.io/owner/kiisrv-controller-057:tag`. The script automatically creates the correct local tags.
 
 ### Build Locally (If Pre-Built Images Unavailable)
 
@@ -97,9 +103,11 @@ If you just want to run your own kiisrv instance:
 # Requires: Docker only (no Rust, no build tools, no git clone!)
 mkdir -p ~/kiisrv && cd ~/kiisrv
 curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/pull-and-tag.sh
+chmod +x pull-and-tag.sh
 mkdir -p tmp_builds tmp_config && touch config.db stats.db
 chmod 666 config.db stats.db
-docker compose -f compose.ghcr.yaml pull
+./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
 docker compose -f compose.ghcr.yaml up -d
 ```
 
@@ -123,9 +131,11 @@ Point your configurator to `http://localhost:3001`.
    ```bash
    sudo mkdir -p /opt/kiisrv && cd /opt/kiisrv
    curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/compose.ghcr.yaml
+   curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/pull-and-tag.sh
+   chmod +x pull-and-tag.sh
    mkdir -p tmp_builds tmp_config && touch config.db stats.db
    chmod 666 config.db stats.db  # Allow container to write
-   docker compose -f compose.ghcr.yaml pull
+   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
    docker compose -f compose.ghcr.yaml up -d
    ```
 
@@ -143,6 +153,13 @@ Point your configurator to `http://localhost:3001`.
 ---
 
 ## Common Issues
+
+### "Unable to find image 'kiisrv-controller-057:latest'"
+✅ **Solution:** Use the `pull-and-tag.sh` script after pulling images  
+**Why:** kiisrv expects simple image names, but registries use full paths  
+```bash
+./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+```
 
 ### IPv6-only server can't pull images
 ✅ **Solution:** Use pre-built images (ghcr.io supports IPv6) or build locally and transfer  
