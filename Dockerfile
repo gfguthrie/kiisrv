@@ -79,3 +79,57 @@ RUN cd controller/Keyboards && pipenv run /usr/local/bin/update_kll_cache.sh
 WORKDIR /controller/Keyboards
 ENTRYPOINT ["/usr/local/bin/build.sh"]
 
+# KiiSrv server stage - Rust builder
+FROM rust:1.83-bookworm AS builder
+
+WORKDIR /build
+
+# Copy dependency files first for better layer caching
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY schema ./schema
+
+# Build release binary
+RUN cargo build --release
+
+# KiiSrv server stage - Runtime
+FROM debian:bookworm-slim AS kiisrv
+
+# Install minimal runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    docker.io \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+# Note: We need to match the Docker socket GID which varies by system
+# On Mac it's often 991, on Linux it's often 999 or similar
+RUN useradd -m -u 1000 -s /bin/bash kiisrv && \
+    groupadd -g 991 dockerhost || true && \
+    usermod -aG docker,991 kiisrv
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/target/release/kiisrv /app/kiisrv
+
+# Copy layouts and schema directories
+COPY layouts ./layouts
+COPY schema ./schema
+
+# Create directories for runtime data
+RUN mkdir -p tmp_builds tmp_config && \
+    chown -R kiisrv:kiisrv /app
+
+USER kiisrv
+
+# Default environment variables (can be overridden)
+ENV KIISRV_HOST=0.0.0.0 \
+    KIISRV_PORT=3001
+
+EXPOSE 3001
+
+CMD ["/app/kiisrv"]
+

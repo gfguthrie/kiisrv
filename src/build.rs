@@ -105,7 +105,6 @@ pub fn start_build(
     let mut args = vec![
         "run".to_string(),
         "--rm".to_string(),
-        "-T".to_string(),
         "-e".to_string(),
         format!("DefaultMapOverride={}", kll_layer(config.default_map)),
         "-e".to_string(),
@@ -122,25 +121,43 @@ pub fn start_build(
         args.push("SPLIT_KEYBOARD=1".to_string());
     }
 
-    args.extend_from_slice(&[container.clone(), config.build_script, kll_dir, output_file]);
+    // Add volume mounts for build directories
+    // Use environment variables for host paths (set in compose.prod.yaml or default to current dir)
+    let host_config_dir = std::env::var("HOST_TMP_CONFIG")
+        .unwrap_or_else(|_| std::env::current_dir().unwrap().join("tmp_config").display().to_string());
+    let host_builds_dir = std::env::var("HOST_TMP_BUILDS")
+        .unwrap_or_else(|_| std::env::current_dir().unwrap().join("tmp_builds").display().to_string());
+    
+    args.push("-v".to_string());
+    args.push(format!("{}:/mnt/config", host_config_dir));
+    args.push("-v".to_string());
+    args.push(format!("{}:/mnt/builds", host_builds_dir));
+    
+    // Add the image name
+    args.push(format!("kiisrv-{}", container));
+    
+    // Add the build script and arguments
+    args.extend_from_slice(&[config.build_script, kll_dir, output_file]);
 
     let mut compile = Command::new("docker");
-    compile.arg("compose").args(&args);
-    let process = SharedChild::spawn(&mut compile).expect("docker compose failed to run container");
+    compile.args(&args);
+    let process = SharedChild::spawn(&mut compile).expect("docker run failed to run container");
 
     println!(" >> Created PID: {} ({})", process.id(), container);
     return process;
 }
 
 pub fn list_containers() -> Vec<String> {
+    // Use docker images list instead of docker compose config
+    // since compose file is not available inside the container
     let result = Command::new("docker")
-        .args(&["compose", "config", "--services"])
+        .args(&["images", "--format", "{{.Repository}}", "--filter", "reference=kiisrv-controller-*"])
         .output()
-        .expect("Please install docker compose");
+        .expect("Please install docker");
     let out = String::from_utf8_lossy(&result.stdout);
     out.lines()
-        .filter(|s| !s.contains("template"))
-        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim().replace("kiisrv-", "").to_string())
         .collect()
 }
 

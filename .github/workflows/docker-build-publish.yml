@@ -1,0 +1,181 @@
+name: Build and Publish Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - containerize
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  REGISTRY_GHCR: ghcr.io
+  REGISTRY_DOCKERHUB: docker.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        include:
+          - image: kiisrv
+            dockerfile: Dockerfile
+            target: kiisrv
+            context: .
+          - image: controller-050
+            dockerfile: Dockerfile
+            target: controller
+            context: .
+            build-args: |
+              TAG=v0.5.0
+          - image: controller-054
+            dockerfile: Dockerfile
+            target: controller
+            context: .
+            build-args: |
+              TAG=v0.5.4
+          - image: controller-055
+            dockerfile: Dockerfile
+            target: controller
+            context: .
+            build-args: |
+              TAG=v0.5.5
+          - image: controller-056
+            dockerfile: Dockerfile
+            target: controller
+            context: .
+            build-args: |
+              TAG=v0.5.6
+          - image: controller-057
+            dockerfile: Dockerfile
+            target: controller
+            context: .
+            build-args: |
+              TAG=v0.5.7
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-${{ matrix.image }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/kiisrv-${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          build-args: ${{ matrix.build-args }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+      
+      - name: Image digest
+        run: echo "Image published with digest ${{ steps.build.outputs.digest }}"
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Pull images
+        run: |
+          docker pull ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-kiisrv:${{ github.ref_name }}
+          docker pull ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-controller-050:${{ github.ref_name }}
+          docker pull ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-controller-057:${{ github.ref_name }}
+      
+      - name: Tag images for local use
+        run: |
+          docker tag ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-kiisrv:${{ github.ref_name }} kiisrv-server:latest
+          docker tag ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-controller-050:${{ github.ref_name }} kiisrv-controller-050:latest
+          docker tag ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/kiisrv-controller-057:${{ github.ref_name }} kiisrv-controller-057:latest
+      
+      - name: Create required files
+        run: |
+          mkdir -p tmp_builds tmp_config
+          touch config.db stats.db
+          # Set permissions so container can write (container runs as uid 1000)
+          chmod 666 config.db stats.db
+          chmod 777 tmp_builds tmp_config
+      
+      - name: Start services
+        run: docker compose -f compose.prod.yaml up -d
+        timeout-minutes: 2
+      
+      - name: Wait for service to be ready
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:3001/stats; do sleep 2; done'
+      
+      - name: Test endpoints
+        run: |
+          curl -f http://localhost:3001/stats
+          curl -f http://localhost:3001/versions
+      
+      - name: View logs
+        if: always()
+        run: docker compose -f compose.prod.yaml logs
+      
+      - name: Stop services
+        if: always()
+        run: docker compose -f compose.prod.yaml down
+
