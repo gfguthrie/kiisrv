@@ -37,14 +37,20 @@ echo "Tag: $TAG"
 echo "Controllers: ${CONTROLLERS[*]}"
 echo ""
 
-# Detect registry from compose file
-if grep -q "ghcr.io" "$COMPOSE_FILE"; then
+# Detect registry from compose file by looking at actual image declarations (not comments)
+# Extract the kiisrv image line and check its format
+KIISRV_IMAGE=$(grep "^[[:space:]]*image:" "$COMPOSE_FILE" | head -1 | sed 's/^[[:space:]]*image:[[:space:]]*//')
+
+if echo "$KIISRV_IMAGE" | grep -q "ghcr.io"; then
     REGISTRY="ghcr.io"
-elif grep -q "docker.io" "$COMPOSE_FILE" || grep -q "index.docker.io" "$COMPOSE_FILE"; then
+    REGISTRY_PREFIX="ghcr.io/"
+elif echo "$KIISRV_IMAGE" | grep -q "docker.io"; then
     REGISTRY="docker.io"
+    REGISTRY_PREFIX="docker.io/"
 else
-    echo "Could not detect registry from $COMPOSE_FILE"
-    exit 1
+    # No explicit registry means Docker Hub (default) - no prefix needed
+    REGISTRY="docker.io"
+    REGISTRY_PREFIX=""
 fi
 
 echo "Detected registry: $REGISTRY"
@@ -59,7 +65,7 @@ docker compose -f "$COMPOSE_FILE" pull kiisrv
 echo "  Pulling controller images..."
 # Pull each controller directly since they have profile: manual in compose
 for ctrl in "${CONTROLLERS[@]}"; do
-    IMAGE="$REGISTRY/$REGISTRY_OWNER/kiisrv-controller-$ctrl:$TAG"
+    IMAGE="${REGISTRY_PREFIX}${REGISTRY_OWNER}/kiisrv-controller-$ctrl:$TAG"
     echo "    - $IMAGE"
     if docker pull "$IMAGE" 2>/dev/null; then
         echo "      ✓ Pulled successfully"
@@ -72,7 +78,7 @@ echo ""
 echo "Step 2: Tagging images for local use..."
 
 for ctrl in "${CONTROLLERS[@]}"; do
-    SOURCE_IMAGE="$REGISTRY/$REGISTRY_OWNER/kiisrv-controller-$ctrl:$TAG"
+    SOURCE_IMAGE="${REGISTRY_PREFIX}${REGISTRY_OWNER}/kiisrv-controller-$ctrl:$TAG"
     TARGET_IMAGE="kiisrv-controller-$ctrl:latest"
     
     # Check if source image exists
@@ -85,7 +91,7 @@ for ctrl in "${CONTROLLERS[@]}"; do
 done
 
 # Tag the main kiisrv image
-KIISRV_SOURCE="$REGISTRY/$REGISTRY_OWNER/kiisrv-kiisrv:$TAG"
+KIISRV_SOURCE="${REGISTRY_PREFIX}${REGISTRY_OWNER}/kiisrv-kiisrv:$TAG"
 KIISRV_TARGET="kiisrv-server:latest"
 
 if docker image inspect "$KIISRV_SOURCE" >/dev/null 2>&1; then
@@ -95,7 +101,8 @@ fi
 
 echo ""
 echo "Step 3: Verifying tagged images..."
-docker images | grep -E "kiisrv-(controller|server)" | grep -v "$REGISTRY"
+# Show locally tagged images (without registry prefix)
+docker images | grep -E "^kiisrv-(controller|server)"
 
 echo ""
 echo "====================================="
