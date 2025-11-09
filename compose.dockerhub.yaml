@@ -8,7 +8,16 @@
 #   4. Update the group_add section below with your docker GID
 #
 # Usage Option A (Automated - Recommended):
+#   # Pull only controller-057 (latest, fastest - recommended)
 #   ./pull-and-tag.sh compose.dockerhub.yaml your-dockerhub-username containerize
+#   docker compose -f compose.dockerhub.yaml up -d
+#
+#   # Or pull all controllers (if you need LTS or older versions)
+#   ./pull-and-tag.sh compose.dockerhub.yaml your-dockerhub-username containerize all
+#   docker compose -f compose.dockerhub.yaml up -d
+#
+#   # Or pull specific controllers only
+#   ./pull-and-tag.sh compose.dockerhub.yaml your-dockerhub-username containerize "050 057"
 #   docker compose -f compose.dockerhub.yaml up -d
 #
 # Usage Option B (Manual):

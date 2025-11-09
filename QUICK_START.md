@@ -26,8 +26,12 @@ mkdir -p tmp_builds tmp_config
 touch config.db stats.db
 chmod 666 config.db stats.db  # Allow container to write
 
-# 4. Pull images and tag them correctly (the script handles registry differences)
+# 4. Pull images and tag them correctly
+# By default, pulls only controller-057 (latest). Use "all" to pull all versions.
 ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+
+# Optional: Pull all controller versions (takes longer, more disk space)
+# ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest all
 
 # 5. Start kiisrv
 docker compose -f compose.ghcr.yaml up -d
@@ -36,10 +40,15 @@ docker compose -f compose.ghcr.yaml up -d
 curl http://localhost:3001/versions
 ```
 
-**Time:** 2-3 minutes (vs 20-30 min building locally)  
-**Space:** ~15GB for images (vs entire repo + build artifacts)
+**Time:** 1-2 minutes for latest controller, 2-3 minutes for all (vs 20-30 min building locally)  
+**Space:** ~3GB for latest controller, ~15GB for all controllers
 
 **Why the `pull-and-tag.sh` script?** kiisrv expects images named `kiisrv-controller-057`, but registries store them as `ghcr.io/owner/kiisrv-controller-057:tag`. The script automatically creates the correct local tags.
+
+**Controller versions:**
+- **Default (057 only)**: Fastest, recommended for most users - supports latest keyboards
+- **All controllers**: Use if you need LTS (050) or specific older versions
+- **Custom**: Specify versions like `./pull-and-tag.sh compose.ghcr.yaml kiibohd latest "050 057"`
 
 ### Build Locally (If Pre-Built Images Unavailable)
 
@@ -107,7 +116,7 @@ curl -O https://raw.githubusercontent.com/kiibohd/kiisrv/main/pull-and-tag.sh
 chmod +x pull-and-tag.sh
 mkdir -p tmp_builds tmp_config && touch config.db stats.db
 chmod 666 config.db stats.db
-./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+./pull-and-tag.sh compose.ghcr.yaml kiibohd latest  # Pulls controller-057 only
 docker compose -f compose.ghcr.yaml up -d
 ```
 
@@ -135,7 +144,9 @@ Point your configurator to `http://localhost:3001`.
    chmod +x pull-and-tag.sh
    mkdir -p tmp_builds tmp_config && touch config.db stats.db
    chmod 666 config.db stats.db  # Allow container to write
+   # Pull only latest controller (057) - fastest option
    ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+   # Or pull all controllers: ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest all
    docker compose -f compose.ghcr.yaml up -d
    ```
 

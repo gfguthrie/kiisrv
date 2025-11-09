@@ -2,13 +2,31 @@
 # Helper script to pull pre-built images and tag them for local use
 # kiisrv expects images named: kiisrv-controller-050, kiisrv-controller-057, etc.
 # But registries store them with full paths: ghcr.io/owner/kiisrv-controller-050:tag
+#
+# Usage:
+#   ./pull-and-tag.sh [compose-file] [registry-owner] [tag] [controllers]
+#
+# Examples:
+#   ./pull-and-tag.sh                                    # Pull latest (057 only)
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest   # Pull latest (057 only)
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest all  # Pull all controllers
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest "050 057"  # Pull specific versions
 
-set -e
+# Note: We don't use 'set -e' because it's okay if some controller images don't exist
 
 # Configuration
 COMPOSE_FILE="${1:-compose.ghcr.yaml}"
 REGISTRY_OWNER="${2:-kiibohd}"
 TAG="${3:-latest}"
+CONTROLLERS_ARG="${4:-057}"  # Default to latest only
+
+# Parse controller versions
+if [ "$CONTROLLERS_ARG" = "all" ]; then
+    CONTROLLERS=("050" "054" "055" "056" "057")
+else
+    # Split space-separated list into array
+    read -ra CONTROLLERS <<< "$CONTROLLERS_ARG"
+fi
 
 echo "====================================="
 echo "Pull and Tag Script for kiisrv"
@@ -16,6 +34,7 @@ echo "====================================="
 echo "Compose file: $COMPOSE_FILE"
 echo "Registry owner: $REGISTRY_OWNER"
 echo "Tag: $TAG"
+echo "Controllers: ${CONTROLLERS[*]}"
 echo ""
 
 # Detect registry from compose file
@@ -31,15 +50,26 @@ fi
 echo "Detected registry: $REGISTRY"
 echo ""
 
-# Pull all images using docker compose
+# Pull all images
+# Controller images have profiles in compose, so we pull them directly with docker
 echo "Step 1: Pulling images from registry..."
-docker compose -f "$COMPOSE_FILE" pull
+echo "  Pulling main kiisrv image..."
+docker compose -f "$COMPOSE_FILE" pull kiisrv
+
+echo "  Pulling controller images..."
+# Pull each controller directly since they have profile: manual in compose
+for ctrl in "${CONTROLLERS[@]}"; do
+    IMAGE="$REGISTRY/$REGISTRY_OWNER/kiisrv-controller-$ctrl:$TAG"
+    echo "    - $IMAGE"
+    if docker pull "$IMAGE" 2>/dev/null; then
+        echo "      ✓ Pulled successfully"
+    else
+        echo "      ⚠ Not available in registry (skipping)"
+    fi
+done
 
 echo ""
 echo "Step 2: Tagging images for local use..."
-
-# Controller versions to tag
-CONTROLLERS=("050" "054" "055" "056" "057")
 
 for ctrl in "${CONTROLLERS[@]}"; do
     SOURCE_IMAGE="$REGISTRY/$REGISTRY_OWNER/kiisrv-controller-$ctrl:$TAG"

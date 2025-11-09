@@ -9,7 +9,16 @@
 #   5. Update the group_add section below with your docker GID
 #
 # Usage Option A (Automated - Recommended):
+#   # Pull only controller-057 (latest, fastest - recommended)
 #   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest
+#   docker compose -f compose.ghcr.yaml up -d
+#
+#   # Or pull all controllers (if you need LTS or older versions)
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest all
+#   docker compose -f compose.ghcr.yaml up -d
+#
+#   # Or pull specific controllers only
+#   ./pull-and-tag.sh compose.ghcr.yaml kiibohd latest "050 057"
 #   docker compose -f compose.ghcr.yaml up -d
 #
 # Usage Option B (Manual):
